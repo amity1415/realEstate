@@ -90,6 +90,8 @@ form textarea { resize: vertical; min-height: 64px; }
 
 /* Topbar */
 .app-view { min-height: 100vh; display: flex; flex-direction: column; }
+/* The class display rules above out-specify the UA [hidden] rule, so make hidden win explicitly. */
+.login-view[hidden], .app-view[hidden] { display: none !important; }
 .topbar {
     display: flex;
     align-items: center;
