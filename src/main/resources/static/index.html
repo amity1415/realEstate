@@ -4,64 +4,141 @@
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <title>NEST · Advisor CRM</title>
+    <meta name="description" content="NEST — private advisor CRM with an on-demand AI sales coach."/>
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+    <link rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap"/>
     <link rel="stylesheet" href="/styles.css"/>
 </head>
 <body>
 <!-- Login -->
 <section id="login-view" class="login-view">
-    <div class="login-card">
-        <div class="brand">
-            <span class="brand-mark">NEST</span>
-            <span class="brand-sub">Advisor CRM</span>
+    <div class="login-brandside">
+        <div class="login-brandside-inner">
+            <div class="brand brand--light">
+                <span class="brand-logo">N</span>
+                <span class="brand-words"><span class="brand-mark">NEST</span><span class="brand-sub">Advisor CRM</span></span>
+            </div>
+            <h1 class="login-headline">Understand the buyer.<br/>Recommend with confidence.</h1>
+            <p class="login-lede">A private workspace for UAE property advisors — pipeline, authorised
+                inventory and an on-demand, evidence-backed AI sales coach.</p>
+            <ul class="login-points">
+                <li>Grounded coaching with cited evidence</li>
+                <li>Deterministic, verified property matches</li>
+                <li>Your data, your workspace — nothing sent automatically</li>
+            </ul>
         </div>
-        <p class="login-intro">Private advisor workspace. Sign in to continue.</p>
-        <form id="login-form">
-            <label>Email
-                <input type="email" id="login-email" autocomplete="username" required/>
-            </label>
-            <label>Password
-                <input type="password" id="login-password" autocomplete="current-password" required/>
-            </label>
-            <button type="submit" class="btn btn-primary btn-block">Sign in</button>
-            <p id="login-error" class="form-error" role="alert"></p>
-        </form>
+    </div>
+    <div class="login-formside">
+        <div class="login-card">
+            <div class="brand brand--mobile">
+                <span class="brand-logo">N</span>
+                <span class="brand-words"><span class="brand-mark">NEST</span><span class="brand-sub">Advisor CRM</span></span>
+            </div>
+            <h2 class="login-title">Sign in</h2>
+            <p class="login-intro">Welcome back. Enter your credentials to continue.</p>
+            <form id="login-form">
+                <label class="field">Email
+                    <input type="email" id="login-email" autocomplete="username" placeholder="you@brokerage.ae" required/>
+                </label>
+                <label class="field">Password
+                    <input type="password" id="login-password" autocomplete="current-password" placeholder="••••••••••" required/>
+                </label>
+                <button type="submit" class="btn btn-primary btn-block btn-lg">Sign in</button>
+                <p id="login-error" class="form-error" role="alert"></p>
+            </form>
+            <p class="login-foot">Private single-owner pilot · access is invitation only.</p>
+        </div>
     </div>
 </section>
 
 <!-- App -->
 <div id="app-view" class="app-view" hidden>
-    <header class="topbar">
-        <div class="topbar-left">
-            <span class="brand-mark small">NEST</span>
-            <span id="ws-name" class="ws-name"></span>
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <span class="brand-logo">N</span>
+            <span class="brand-words"><span class="brand-mark">NEST</span><span class="brand-sub">Advisor CRM</span></span>
         </div>
-        <div class="topbar-right">
-            <label class="tz-label">Timezone
-                <select id="tz-select">
+
+        <nav class="nav">
+            <div class="nav-label">Workspace</div>
+            <button type="button" class="nav-item is-active" id="nav-pipeline">
+                <svg viewBox="0 0 24 24" class="ic"><path d="M4 6h6v12H4zM14 6h6v7h-6z"/></svg>
+                <span>Pipeline</span>
+            </button>
+            <button type="button" class="nav-item" id="btn-inventory">
+                <svg viewBox="0 0 24 24" class="ic"><path d="M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7"/></svg>
+                <span>Inventory</span>
+            </button>
+            <button type="button" class="nav-item" id="btn-team" hidden>
+                <svg viewBox="0 0 24 24" class="ic"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M16 11a3 3 0 1 0-1-5.8M21 20a6 6 0 0 0-5-5.9"/></svg>
+                <span>Team</span>
+            </button>
+
+            <div class="nav-label">Data</div>
+            <button type="button" class="nav-item" id="btn-import">
+                <svg viewBox="0 0 24 24" class="ic"><path d="M12 3v12M8 11l4 4 4-4M4 21h16"/></svg>
+                <span>Import leads</span>
+            </button>
+            <button type="button" class="nav-item" id="btn-export-csv">
+                <svg viewBox="0 0 24 24" class="ic"><path d="M12 21V9M8 13l4-4 4 4M4 3h16"/></svg>
+                <span>Export CSV</span>
+            </button>
+            <button type="button" class="nav-item" id="btn-export-json">
+                <svg viewBox="0 0 24 24" class="ic"><path d="M4 7V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2M3 12h8M7 9l-4 3 4 3"/></svg>
+                <span>Backup JSON</span>
+            </button>
+        </nav>
+
+        <div class="sidebar-foot">
+            <div class="user-chip">
+                <span class="avatar" id="user-avatar">·</span>
+                <span class="user-meta">
+                    <span class="user-name" id="user-name">—</span>
+                    <span class="user-role" id="user-role"></span>
+                </span>
+            </div>
+            <button id="btn-logout" class="btn btn-ghost btn-sm btn-block">Sign out</button>
+        </div>
+    </aside>
+
+    <div class="main">
+        <header class="appbar">
+            <div class="appbar-head">
+                <h1 class="page-title">Pipeline</h1>
+                <span id="ws-name" class="ws-name"></span>
+            </div>
+            <div class="appbar-tools">
+                <div class="searchbox">
+                    <svg viewBox="0 0 24 24" class="ic"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+                    <input id="search" type="search" placeholder="Search name, email, phone, community…"/>
+                </div>
+                <select id="tz-select" class="select" title="Display timezone">
                     <option value="Asia/Kolkata">Asia/Kolkata</option>
                     <option value="Asia/Dubai">Asia/Dubai</option>
                 </select>
-            </label>
-            <button id="btn-export-csv" class="btn btn-ghost">Export CSV</button>
-            <button id="btn-export-json" class="btn btn-ghost">Backup JSON</button>
-            <button id="btn-import" class="btn btn-ghost">Import</button>
-            <button id="btn-inventory" class="btn btn-ghost">Inventory</button>
-            <button id="btn-team" class="btn btn-ghost" hidden>Team</button>
-            <button id="btn-notifs" class="btn btn-ghost">🔔<span id="notif-count" class="notif-count" hidden>0</span></button>
-            <button id="btn-new-lead" class="btn btn-primary">New lead</button>
-            <button id="btn-logout" class="btn btn-ghost">Sign out</button>
+                <button id="btn-notifs" class="icon-btn" title="Notifications">
+                    <svg viewBox="0 0 24 24" class="ic"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+                    <span id="notif-count" class="notif-count" hidden>0</span>
+                </button>
+                <button id="btn-new-lead" class="btn btn-primary">
+                    <svg viewBox="0 0 24 24" class="ic"><path d="M12 5v14M5 12h14"/></svg>
+                    New lead
+                </button>
+            </div>
+        </header>
+
+        <section id="metrics" class="metrics"></section>
+
+        <div class="toolbar">
+            <span class="toolbar-label">Pipeline board</span>
+            <label class="chk"><input type="checkbox" id="show-samples"/> <span>Show samples</span></label>
+            <label class="chk"><input type="checkbox" id="show-archived"/> <span>Show archived</span></label>
         </div>
-    </header>
 
-    <section id="metrics" class="metrics"></section>
-
-    <div class="toolbar">
-        <input id="search" class="search" type="search" placeholder="Search name, email, phone, community…"/>
-        <label class="chk"><input type="checkbox" id="show-samples"/> Show samples</label>
-        <label class="chk"><input type="checkbox" id="show-archived"/> Show archived</label>
+        <main id="board" class="board"></main>
     </div>
-
-    <main id="board" class="board"></main>
 </div>
 
 <!-- Lead detail drawer -->
@@ -70,7 +147,9 @@
     <aside class="drawer-panel">
         <div class="drawer-head">
             <h2 id="drawer-title">Lead</h2>
-            <button class="btn btn-ghost" data-close="drawer">Close</button>
+            <button class="icon-btn" data-close="drawer" title="Close">
+                <svg viewBox="0 0 24 24" class="ic"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
         </div>
         <div id="drawer-body" class="drawer-body"></div>
     </aside>
@@ -82,7 +161,9 @@
     <div class="modal-panel">
         <div class="drawer-head">
             <h2 id="modal-title">…</h2>
-            <button class="btn btn-ghost" data-close="modal">Close</button>
+            <button class="icon-btn" data-close="modal" title="Close">
+                <svg viewBox="0 0 24 24" class="ic"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
         </div>
         <div id="modal-body" class="drawer-body"></div>
     </div>

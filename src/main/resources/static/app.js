@@ -107,7 +107,11 @@ function onAuthenticated(me) {
         $("#tz-select").value = ["Asia/Kolkata", "Asia/Dubai"].includes(me.timezone)
             ? me.timezone : "Asia/Kolkata";
     }
-    $("#ws-name").textContent = me.workspaceName ? me.workspaceName + " · " + me.email : me.email;
+    $("#ws-name").textContent = me.workspaceName || "";
+    const nm = me.displayName || me.email || "";
+    const uName = $("#user-name"); if (uName) uName.textContent = nm;
+    const uRole = $("#user-role"); if (uRole) uRole.textContent = me.role || "";
+    const uAv = $("#user-avatar"); if (uAv) uAv.textContent = (nm || "?").trim().charAt(0).toUpperCase();
     const admin = me.role === "OWNER" || me.role === "ADMIN";
     $("#btn-team").hidden = !admin;
     showApp();
@@ -176,7 +180,7 @@ function leadCard(l) {
     if (l.bedrooms != null) meta.appendChild(el("span", null, bedroomsLabel(l.bedrooms)));
     if (l.emirate) meta.appendChild(el("span", null, l.emirate));
     card.appendChild(meta);
-    const badges = el("div", "meta");
+    const badges = el("div", "meta badges");
     if (l.sample) badges.appendChild(el("span", "badge badge-sample", "Sample"));
     if (l.archivedAt) badges.appendChild(el("span", "badge badge-archived", "Archived"));
     if (badges.children.length) card.appendChild(badges);
