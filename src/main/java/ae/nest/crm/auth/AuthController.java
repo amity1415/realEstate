@@ -77,7 +77,8 @@ public class AuthController {
             // Persist the context to the (JDBC-backed) HTTP session so it survives restarts.
             securityContextRepository.saveContext(context, httpRequest, httpResponse);
             return me();
-        } catch (BadCredentialsException ex) {
+        } catch (org.springframework.security.core.AuthenticationException ex) {
+            // Covers bad credentials, disabled/locked accounts, etc. — do not reveal which.
             throw new ae.nest.crm.common.ApiExceptions.BadRequestException("Invalid email or password");
         }
     }
