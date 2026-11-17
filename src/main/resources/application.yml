@@ -1,0 +1,103 @@
+spring:
+  application:
+    name: nest-crm
+
+  datasource:
+    # Pooled runtime connection (for Neon, use the pooled host). Converted pgJDBC URL required.
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/nest_crm}
+    username: ${SPRING_DATASOURCE_USERNAME:nest}
+    password: ${SPRING_DATASOURCE_PASSWORD:nest}
+    hikari:
+      # Keep the pool small for serverless Postgres; tune from load measurements.
+      maximum-pool-size: ${DB_POOL_MAX:5}
+      minimum-idle: ${DB_POOL_MIN:1}
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    # Set explicitly (always PostgreSQL) so startup does not open a connection just to detect it.
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        format_sql: false
+    show-sql: false
+
+  flyway:
+    enabled: true
+    # Run migrations through the DIRECT connection (for Neon use the direct, non-pooled host).
+    # Defaults to the runtime datasource for local/dev where the two are the same.
+    url: ${MIGRATION_JDBC_URL:${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/nest_crm}}
+    user: ${MIGRATION_DB_USERNAME:${SPRING_DATASOURCE_USERNAME:nest}}
+    password: ${MIGRATION_DB_PASSWORD:${SPRING_DATASOURCE_PASSWORD:nest}}
+    baseline-on-migrate: false
+    # Guard against concurrent migration across replicas.
+    locations: classpath:db/migration
+
+  session:
+    store-type: jdbc
+    timeout: ${SESSION_TIMEOUT:12h}
+    jdbc:
+      # Schema is owned by Flyway (V2). Do not let Spring Session create/alter it.
+      initialize-schema: never
+
+server:
+  port: ${PORT:8080}
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: lax
+        secure: ${SESSION_COOKIE_SECURE:false}
+  forward-headers-strategy: framework
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+app:
+  base-url: ${APP_BASE_URL:http://localhost:8080}
+  default-timezone: ${APP_DEFAULT_TIMEZONE:Asia/Kolkata}
+  inventory:
+    freshness-days: ${INVENTORY_FRESHNESS_DAYS:30}
+  delivery:
+    # Outbound messaging provider. 'simulated' does not actually send; wire a real one when connected.
+    provider: ${DELIVERY_PROVIDER:simulated}
+  scheduling:
+    enabled: ${SCHEDULING_ENABLED:true}
+    reminders-ms: ${SCHEDULING_REMINDERS_MS:60000}
+    outbox-ms: ${SCHEDULING_OUTBOX_MS:15000}
+  owner:
+    bootstrap: ${APP_OWNER_BOOTSTRAP:false}
+    email: ${APP_OWNER_EMAIL:}
+    password: ${APP_OWNER_PASSWORD:}
+    workspace-name: ${APP_OWNER_WORKSPACE_NAME:NEST}
+    workspace-timezone: ${APP_OWNER_WORKSPACE_TIMEZONE:Asia/Kolkata}
+  ai:
+    enabled: ${AI_ENABLED:false}
+    provider: ${AI_PROVIDER:mock}
+    model: ${AI_MODEL:mock-model}
+    api-key: ${AI_API_KEY:}
+    max-input-tokens: ${AI_MAX_INPUT_TOKENS:8000}
+    max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:1500}
+    daily-budget-usd: ${AI_DAILY_BUDGET_USD:0}
+
+logging:
+  level:
+    root: INFO
+    ae.nest.crm: INFO
+    org.flywaydb: INFO

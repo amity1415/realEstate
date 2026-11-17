@@ -1,0 +1,200 @@
+package ae.nest.crm.inbound;
+
+import ae.nest.crm.common.ApiExceptions.BadRequestException;
+import ae.nest.crm.common.ApiExceptions.NotFoundException;
+import ae.nest.crm.domain.InboundSource;
+import ae.nest.crm.domain.Lead;
+import ae.nest.crm.domain.NotificationType;
+import ae.nest.crm.inbound.InboundDtos.CreateSourceRequest;
+import ae.nest.crm.inbound.InboundDtos.CreatedSourceResponse;
+import ae.nest.crm.inbound.InboundDtos.InboundAck;
+import ae.nest.crm.inbound.InboundDtos.InboundLeadRequest;
+import ae.nest.crm.inbound.InboundDtos.SourceResponse;
+import ae.nest.crm.interaction.InteractionDtos.InteractionCreateRequest;
+import ae.nest.crm.interaction.InteractionService;
+import ae.nest.crm.lead.LeadDtos.LeadCreateRequest;
+import ae.nest.crm.lead.LeadService;
+import ae.nest.crm.notification.NotificationService;
+import ae.nest.crm.repo.InboundSourceRepository;
+import ae.nest.crm.repo.LeadRepository;
+import ae.nest.crm.domain.InteractionType;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.time.Instant;
+import java.util.Base64;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * Approved inbound lead capture. Sources are managed by the owner/admin and authenticated by a
+ * per-source token (only the hash is stored). The intake can only create a lead, is rate-limited, and
+ * dedupes by email so a repeated website submission does not create duplicates.
+ */
+@Service
+public class InboundService {
+
+    private static final int MAX_PER_MINUTE = 60;
+
+    private final InboundSourceRepository sources;
+    private final LeadRepository leads;
+    private final LeadService leadService;
+    private final InteractionService interactions;
+    private final NotificationService notifications;
+    private final SecureRandom random = new SecureRandom();
+    private final ConcurrentHashMap<UUID, java.util.Deque<Instant>> rate = new ConcurrentHashMap<>();
+
+    public InboundService(
+            InboundSourceRepository sources,
+            LeadRepository leads,
+            LeadService leadService,
+            InteractionService interactions,
+            NotificationService notifications) {
+        this.sources = sources;
+        this.leads = leads;
+        this.leadService = leadService;
+        this.interactions = interactions;
+        this.notifications = notifications;
+    }
+
+    @Transactional
+    public CreatedSourceResponse createSource(
+            UUID workspaceId, UUID createdBy, CreateSourceRequest req) {
+        String token = "nest_" + base64Url(32);
+        InboundSource s = new InboundSource();
+        s.setWorkspaceId(workspaceId);
+        s.setName(req.name().trim());
+        s.setTokenHash(sha256(token));
+        s.setCreatedBy(createdBy);
+        s.setActive(true);
+        if (req.defaultOwnerId() != null && !req.defaultOwnerId().isBlank()) {
+            s.setDefaultOwnerId(UUID.fromString(req.defaultOwnerId()));
+        } else {
+            s.setDefaultOwnerId(createdBy);
+        }
+        s = sources.save(s);
+        return new CreatedSourceResponse(toResponse(s), token);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SourceResponse> list(UUID workspaceId) {
+        return sources.findByWorkspaceIdOrderByCreatedAtDesc(workspaceId).stream()
+                .map(InboundService::toResponse)
+                .toList();
+    }
+
+    @Transactional
+    public SourceResponse setActive(UUID workspaceId, UUID id, boolean active) {
+        InboundSource s = sources.findByIdAndWorkspaceId(id, workspaceId)
+                .orElseThrow(() -> new NotFoundException("Inbound source not found"));
+        s.setActive(active);
+        return toResponse(sources.save(s));
+    }
+
+    /** Token-authenticated intake. Creates (or dedupes to) a lead and notifies the assignee. */
+    @Transactional
+    public InboundAck intake(String token, InboundLeadRequest req) {
+        if (token == null || token.isBlank()) {
+            throw new BadRequestException("Missing inbound token.");
+        }
+        InboundSource source = sources.findByTokenHashAndActiveTrue(sha256(token))
+                .orElseThrow(() -> new BadRequestException("Invalid or inactive inbound token."));
+        if (!allow(source.getId())) {
+            throw new BadRequestException("Rate limit exceeded for this source.");
+        }
+
+        String name = firstNonBlank(req.name(), req.email(), "Website enquiry");
+        if ((req.name() == null || req.name().isBlank())
+                && (req.email() == null || req.email().isBlank())) {
+            throw new BadRequestException("Provide at least a name or an email.");
+        }
+        UUID workspaceId = source.getWorkspaceId();
+        UUID owner = source.getDefaultOwnerId() == null ? source.getCreatedBy()
+                : source.getDefaultOwnerId();
+
+        // Dedupe by email: attach the enquiry to the existing lead rather than duplicating.
+        if (req.email() != null && !req.email().isBlank()) {
+            Lead existing = leads.findFirstByWorkspaceIdAndEmailIgnoreCase(
+                    workspaceId, req.email().trim().toLowerCase()).orElse(null);
+            if (existing != null) {
+                logEnquiry(workspaceId, owner, existing.getId(), req, source.getName());
+                notify(workspaceId, owner, existing.getId(), source.getName(), true);
+                return new InboundAck("accepted", existing.getId().toString(), true);
+            }
+        }
+
+        LeadCreateRequest create = new LeadCreateRequest(
+                name, req.email(), req.phone(), source.getName(), null, null, req.budgetAed(),
+                req.bedrooms(), req.emirate(), null, null, req.message(), false, null);
+        var lead = leadService.create(workspaceId, owner, create);
+        UUID leadId = UUID.fromString(lead.id());
+        logEnquiry(workspaceId, owner, leadId, req, source.getName());
+        notify(workspaceId, owner, leadId, source.getName(), false);
+        return new InboundAck("accepted", lead.id(), false);
+    }
+
+    private void logEnquiry(UUID workspaceId, UUID owner, UUID leadId, InboundLeadRequest req,
+            String sourceName) {
+        String text = "Inbound enquiry via " + sourceName
+                + (req.message() == null || req.message().isBlank() ? "" : ": " + req.message());
+        interactions.add(workspaceId, owner, leadId,
+                new InteractionCreateRequest(InteractionType.MESSAGE, Instant.now(), text, "inbound"));
+    }
+
+    private void notify(UUID workspaceId, UUID owner, UUID leadId, String sourceName,
+            boolean duplicate) {
+        notifications.create(workspaceId, owner, NotificationType.INBOUND_LEAD,
+                duplicate ? "New enquiry on an existing lead" : "New inbound lead",
+                "Via " + sourceName, leadId, null, null);
+    }
+
+    private boolean allow(UUID sourceId) {
+        Instant now = Instant.now();
+        Instant cutoff = now.minusSeconds(60);
+        var window = rate.computeIfAbsent(sourceId, k -> new java.util.ArrayDeque<>());
+        synchronized (window) {
+            while (!window.isEmpty() && window.peekFirst().isBefore(cutoff)) {
+                window.pollFirst();
+            }
+            if (window.size() >= MAX_PER_MINUTE) {
+                return false;
+            }
+            window.addLast(now);
+            return true;
+        }
+    }
+
+    private static SourceResponse toResponse(InboundSource s) {
+        return new SourceResponse(s.getId().toString(), s.getName(), s.isActive(),
+                s.getDefaultOwnerId() == null ? null : s.getDefaultOwnerId().toString(),
+                s.getCreatedAt());
+    }
+
+    private String base64Url(int bytes) {
+        byte[] buf = new byte[bytes];
+        random.nextBytes(buf);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(buf);
+    }
+
+    private static String sha256(String s) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(md.digest(s.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String v : values) {
+            if (v != null && !v.isBlank()) {
+                return v.trim();
+            }
+        }
+        return null;
+    }
+}

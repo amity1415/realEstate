@@ -1,0 +1,10 @@
+target/
+.git/
+.gitignore
+.idea/
+*.iml
+.env
+*.log
+.DS_Store
+HANDOFF.md
+README.md

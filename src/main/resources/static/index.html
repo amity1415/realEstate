@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>NEST · Advisor CRM</title>
+    <link rel="stylesheet" href="/styles.css"/>
+</head>
+<body>
+<!-- Login -->
+<section id="login-view" class="login-view">
+    <div class="login-card">
+        <div class="brand">
+            <span class="brand-mark">NEST</span>
+            <span class="brand-sub">Advisor CRM</span>
+        </div>
+        <p class="login-intro">Private advisor workspace. Sign in to continue.</p>
+        <form id="login-form">
+            <label>Email
+                <input type="email" id="login-email" autocomplete="username" required/>
+            </label>
+            <label>Password
+                <input type="password" id="login-password" autocomplete="current-password" required/>
+            </label>
+            <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+            <p id="login-error" class="form-error" role="alert"></p>
+        </form>
+    </div>
+</section>
+
+<!-- App -->
+<div id="app-view" class="app-view" hidden>
+    <header class="topbar">
+        <div class="topbar-left">
+            <span class="brand-mark small">NEST</span>
+            <span id="ws-name" class="ws-name"></span>
+        </div>
+        <div class="topbar-right">
+            <label class="tz-label">Timezone
+                <select id="tz-select">
+                    <option value="Asia/Kolkata">Asia/Kolkata</option>
+                    <option value="Asia/Dubai">Asia/Dubai</option>
+                </select>
+            </label>
+            <button id="btn-export-csv" class="btn btn-ghost">Export CSV</button>
+            <button id="btn-export-json" class="btn btn-ghost">Backup JSON</button>
+            <button id="btn-import" class="btn btn-ghost">Import</button>
+            <button id="btn-inventory" class="btn btn-ghost">Inventory</button>
+            <button id="btn-team" class="btn btn-ghost" hidden>Team</button>
+            <button id="btn-notifs" class="btn btn-ghost">🔔<span id="notif-count" class="notif-count" hidden>0</span></button>
+            <button id="btn-new-lead" class="btn btn-primary">New lead</button>
+            <button id="btn-logout" class="btn btn-ghost">Sign out</button>
+        </div>
+    </header>
+
+    <section id="metrics" class="metrics"></section>
+
+    <div class="toolbar">
+        <input id="search" class="search" type="search" placeholder="Search name, email, phone, community…"/>
+        <label class="chk"><input type="checkbox" id="show-samples"/> Show samples</label>
+        <label class="chk"><input type="checkbox" id="show-archived"/> Show archived</label>
+    </div>
+
+    <main id="board" class="board"></main>
+</div>
+
+<!-- Lead detail drawer -->
+<div id="drawer" class="drawer" hidden>
+    <div class="drawer-backdrop" data-close="drawer"></div>
+    <aside class="drawer-panel">
+        <div class="drawer-head">
+            <h2 id="drawer-title">Lead</h2>
+            <button class="btn btn-ghost" data-close="drawer">Close</button>
+        </div>
+        <div id="drawer-body" class="drawer-body"></div>
+    </aside>
+</div>
+
+<!-- Generic modal -->
+<div id="modal" class="modal" hidden>
+    <div class="drawer-backdrop" data-close="modal"></div>
+    <div class="modal-panel">
+        <div class="drawer-head">
+            <h2 id="modal-title">…</h2>
+            <button class="btn btn-ghost" data-close="modal">Close</button>
+        </div>
+        <div id="modal-body" class="drawer-body"></div>
+    </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

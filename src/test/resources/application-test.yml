@@ -1,0 +1,41 @@
+spring:
+  datasource:
+    # Replaced at runtime by the Zonky embedded PostgreSQL datasource.
+    url: jdbc:postgresql://localhost:5432/placeholder
+    username: test
+    password: test
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    # Empty so Flyway uses the primary (embedded) datasource rather than a separate connection.
+    url: ""
+    user: ""
+    password: ""
+  session:
+    store-type: jdbc
+    jdbc:
+      initialize-schema: never
+
+app:
+  owner:
+    bootstrap: false
+  ai:
+    enabled: false
+  scheduling:
+    enabled: false
+
+logging:
+  level:
+    org.flywaydb: WARN
+    org.springframework.security: WARN
+
+# Use the native embedded PostgreSQL binary (no Docker) rather than the default docker provider.
+zonky:
+  test:
+    database:
+      provider: zonky
+      type: postgres

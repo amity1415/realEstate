@@ -1,0 +1,122 @@
+{
+  "_comment": "SYNTHETIC EXAMPLE inventory for a pilot import. Replace with your brokerage's actual authorised listings before real use. Importing leaves each property UNVERIFIED until a human verifies it against the approved source.",
+  "source": {
+    "approvedSource": "Brokerage master sheet (example)",
+    "sourceOwner": "NEST (example)",
+    "permission": "AUTHORISED"
+  },
+  "properties": [
+    {
+      "externalId": "NEST-DXB-0001",
+      "developer": "Emaar",
+      "project": "Creek Harbour — Creek Rise",
+      "unitType": "apartment",
+      "emirate": "Dubai",
+      "community": "Dubai Creek Harbour",
+      "bedrooms": 1,
+      "priceAed": 1450000,
+      "sizeSqft": 720,
+      "amenities": ["pool", "gym", "parking", "waterfront"],
+      "completion": "ready",
+      "listingStatus": "AVAILABLE"
+    },
+    {
+      "externalId": "NEST-DXB-0002",
+      "developer": "Emaar",
+      "project": "Creek Harbour — Creek Rise",
+      "unitType": "apartment",
+      "emirate": "Dubai",
+      "community": "Dubai Creek Harbour",
+      "bedrooms": 2,
+      "priceAed": 2150000,
+      "sizeSqft": 1080,
+      "amenities": ["pool", "gym", "parking", "waterfront", "balcony"],
+      "completion": "ready",
+      "listingStatus": "AVAILABLE"
+    },
+    {
+      "externalId": "NEST-DXB-0003",
+      "developer": "DAMAC",
+      "project": "DAMAC Hills 2 — Aquila",
+      "unitType": "townhouse",
+      "emirate": "Dubai",
+      "community": "DAMAC Hills 2",
+      "bedrooms": 3,
+      "priceAed": 1890000,
+      "sizeSqft": 1750,
+      "amenities": ["community pool", "parking", "garden"],
+      "completion": "ready",
+      "listingStatus": "AVAILABLE"
+    },
+    {
+      "externalId": "NEST-DXB-0004",
+      "developer": "Nakheel",
+      "project": "Jumeirah Village Circle — Bellavista",
+      "unitType": "apartment",
+      "emirate": "Dubai",
+      "community": "JVC",
+      "bedrooms": 0,
+      "priceAed": 620000,
+      "sizeSqft": 420,
+      "amenities": ["pool", "gym", "parking"],
+      "completion": "ready",
+      "listingStatus": "AVAILABLE"
+    },
+    {
+      "externalId": "NEST-DXB-0005",
+      "developer": "Sobha",
+      "project": "Sobha Hartland — Waves",
+      "unitType": "apartment",
+      "emirate": "Dubai",
+      "community": "Mohammed Bin Rashid City",
+      "bedrooms": 2,
+      "priceAed": 2650000,
+      "sizeSqft": 1140,
+      "amenities": ["pool", "gym", "parking", "waterfront", "concierge"],
+      "completion": "off-plan",
+      "listingStatus": "AVAILABLE"
+    },
+    {
+      "externalId": "NEST-AUH-0001",
+      "developer": "Aldar",
+      "project": "Yas Island — Mayan",
+      "unitType": "apartment",
+      "emirate": "Abu Dhabi",
+      "community": "Yas Island",
+      "bedrooms": 2,
+      "priceAed": 1980000,
+      "sizeSqft": 1200,
+      "amenities": ["pool", "gym", "parking", "beach access"],
+      "completion": "ready",
+      "listingStatus": "AVAILABLE"
+    },
+    {
+      "externalId": "NEST-AUH-0002",
+      "developer": "Aldar",
+      "project": "Saadiyat — Mamsha Al Saadiyat",
+      "unitType": "apartment",
+      "emirate": "Abu Dhabi",
+      "community": "Saadiyat Island",
+      "bedrooms": 1,
+      "priceAed": 1720000,
+      "sizeSqft": 820,
+      "amenities": ["pool", "gym", "parking", "beach access"],
+      "completion": "ready",
+      "listingStatus": "AVAILABLE"
+    },
+    {
+      "externalId": "NEST-DXB-0006",
+      "developer": "Meraas",
+      "project": "Port de La Mer",
+      "unitType": "apartment",
+      "emirate": "Dubai",
+      "community": "La Mer",
+      "bedrooms": 3,
+      "priceAed": 4950000,
+      "sizeSqft": 1850,
+      "amenities": ["pool", "gym", "parking", "waterfront", "marina"],
+      "completion": "ready",
+      "listingStatus": "RESERVED"
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+# Local development stack: PostgreSQL for the app to use.
+# Start just the database (recommended for running the app via ./mvnw spring-boot:run):
+#   docker compose up -d db
+# Or run the whole stack (db + app):
+#   docker compose up --build
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: nest_crm
+      POSTGRES_USER: nest
+      POSTGRES_PASSWORD: nest
+    ports:
+      - "5432:5432"
+    volumes:
+      - nest_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nest -d nest_crm"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/nest_crm
+      SPRING_DATASOURCE_USERNAME: nest
+      SPRING_DATASOURCE_PASSWORD: nest
+      # One-time owner bootstrap for local use only.
+      APP_OWNER_BOOTSTRAP: "true"
+      APP_OWNER_EMAIL: owner@nest.local
+      APP_OWNER_PASSWORD: ChangeMe123!
+      APP_OWNER_WORKSPACE_NAME: NEST
+    ports:
+      - "8080:8080"
+
+volumes:
+  nest_pg:
