@@ -186,17 +186,48 @@ async function loadBoard() {
     }
     STAGES.forEach(stage => {
         const col = el("div", "column");
+        col.dataset.stage = stage;
+        col.addEventListener("dragover", e => {
+            e.preventDefault(); e.dataTransfer.dropEffect = "move"; col.classList.add("drag-over");
+        });
+        col.addEventListener("dragleave", e => {
+            if (!col.contains(e.relatedTarget)) col.classList.remove("drag-over");
+        });
+        col.addEventListener("drop", e => {
+            e.preventDefault(); col.classList.remove("drag-over");
+            const id = e.dataTransfer.getData("text/plain");
+            if (id) moveLeadToStage(id, stage);
+        });
         const head = el("div", "column-head");
         head.appendChild(el("span", "title", stage));
         head.appendChild(el("span", "count", String(byStage[stage].length)));
         col.appendChild(head);
         if (byStage[stage].length === 0) {
-            col.appendChild(el("div", "col-empty", "No leads"));
+            col.appendChild(el("div", "col-empty", "Drop a lead here"));
         } else {
             byStage[stage].forEach(l => col.appendChild(leadCard(l)));
         }
         board.appendChild(col);
     });
+}
+
+async function moveLeadToStage(leadId, newStage) {
+    try {
+        const lead = await api("GET", "/leads/" + leadId);
+        if (lead.stage === newStage) return;
+        const req = lead.requirement || {};
+        await api("PATCH", "/leads/" + leadId, {
+            name: lead.name, email: lead.email, phone: lead.phone, source: lead.source,
+            stage: newStage, purpose: lead.purpose, budgetAed: lead.budgetAed,
+            bedrooms: lead.bedrooms, emirate: lead.emirate, community: lead.community,
+            purchaseTimeframe: lead.purchaseTimeframe, statedIntent: lead.statedIntent,
+            stageReason: "Moved on board",
+            requirement: { mustHaveAmenities: req.mustHaveAmenities || [], preferences: req.preferences || {} },
+            version: lead.version,
+        });
+        toast(lead.name + " → " + newStage);
+        await refresh();
+    } catch (e) { toast(e.message); await loadBoard(); }
 }
 
 function boardSkeleton() {
@@ -220,6 +251,15 @@ function leadCard(l) {
     const card = el("div", "card");
     card.tabIndex = 0;
     card.setAttribute("role", "button");
+    card.draggable = true;
+    card.dataset.leadId = l.id;
+    card.dataset.stage = l.stage;
+    card.addEventListener("dragstart", e => {
+        e.dataTransfer.setData("text/plain", l.id);
+        e.dataTransfer.effectAllowed = "move";
+        card.classList.add("dragging");
+    });
+    card.addEventListener("dragend", () => card.classList.remove("dragging"));
 
     const top = el("div", "card-top");
     const av = el("div", "card-av", initials(l.name));
@@ -1095,6 +1135,125 @@ async function loadOutbox(leadId) {
     } catch (e) { box.innerHTML = `<p class="form-error">${esc(e.message)}</p>`; }
 }
 
+/* ---------- command palette (⌘K) ---------- */
+
+let paletteEl = null, palItems = [], palIndex = 0, palTimer;
+
+function toggleTheme() {
+    const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    try { localStorage.setItem("nest-theme", next); } catch (e) {}
+}
+
+function paletteActions() {
+    const admin = state.me && (state.me.role === "OWNER" || state.me.role === "ADMIN");
+    const a = [
+        { label: "New lead", hint: "Create", run: openNewLead, icon: "M12 5v14M5 12h14" },
+        { label: "Inventory", hint: "Open", run: openInventory, icon: "M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7" },
+        { label: "Import leads", hint: "Data", run: openImport, icon: "M12 3v12M8 11l4 4 4-4M4 21h16" },
+        { label: "Export CSV", hint: "Data", run: () => download("/exports/leads?format=csv", "leads.csv"), icon: "M12 21V9M8 13l4-4 4 4M4 3h16" },
+        { label: "Notifications", hint: "Open", run: openNotifications, icon: "M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" },
+        { label: "Toggle theme", hint: "View", run: toggleTheme, icon: "M21 12.8A8.5 8.5 0 1 1 11.2 3a6.6 6.6 0 0 0 9.8 9.8z" },
+    ];
+    if (admin) a.splice(2, 0, { label: "Team", hint: "Open", run: openTeam, icon: "M9 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 20a6 6 0 0 1 12 0" });
+    return a;
+}
+
+function openPalette() {
+    if (!state.me) return;
+    if (!paletteEl) buildPalette();
+    paletteEl.hidden = false;
+    const input = paletteEl.querySelector("#pal-input");
+    input.value = "";
+    renderPalette("");
+    setTimeout(() => input.focus(), 10);
+}
+function closePalette() { if (paletteEl) paletteEl.hidden = true; }
+
+function buildPalette() {
+    paletteEl = el("div", "palette");
+    paletteEl.hidden = true;
+    paletteEl.innerHTML = `
+        <div class="palette-backdrop" data-pal-close></div>
+        <div class="palette-panel">
+            <div class="palette-search">
+                <svg viewBox="0 0 24 24" class="ic"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+                <input id="pal-input" placeholder="Search leads or run a command…" autocomplete="off" spellcheck="false">
+                <span class="kbd">esc</span>
+            </div>
+            <div id="pal-results" class="palette-results"></div>
+        </div>`;
+    document.body.appendChild(paletteEl);
+    const input = paletteEl.querySelector("#pal-input");
+    input.addEventListener("input", () => {
+        clearTimeout(palTimer);
+        palTimer = setTimeout(() => renderPalette(input.value.trim()), 160);
+    });
+    input.addEventListener("keydown", palKeydown);
+    paletteEl.querySelector("[data-pal-close]").addEventListener("click", closePalette);
+}
+
+async function renderPalette(q) {
+    const box = paletteEl.querySelector("#pal-results");
+    const ql = q.toLowerCase();
+    const actions = paletteActions().filter(a => !ql || a.label.toLowerCase().includes(ql));
+    let leads = [];
+    if (q) {
+        try {
+            const page = await api("GET", "/leads?size=6&search=" + encodeURIComponent(q));
+            leads = page.content;
+        } catch (e) { /* ignore */ }
+    }
+    palItems = [];
+    let html = "";
+    if (leads.length) {
+        html += `<div class="pal-group">Leads</div>`;
+        leads.forEach(l => {
+            const i = palItems.length; palItems.push({ type: "lead", id: l.id });
+            html += `<div class="pal-item" data-i="${i}">
+                <span class="pal-av" style="background:${avatarColor(l.name)}">${esc(initials(l.name))}</span>
+                <span class="pal-main">${esc(l.name)}<span class="pal-sub">${esc(l.stage)}${l.emirate ? " · " + esc(l.emirate) : ""}</span></span></div>`;
+        });
+    }
+    if (actions.length) {
+        html += `<div class="pal-group">Commands</div>`;
+        actions.forEach(a => {
+            const i = palItems.length; palItems.push({ type: "action", run: a.run });
+            html += `<div class="pal-item" data-i="${i}">
+                <span class="pal-ic"><svg viewBox="0 0 24 24" class="ic"><path d="${a.icon}"/></svg></span>
+                <span class="pal-main">${esc(a.label)}<span class="pal-sub">${esc(a.hint)}</span></span></div>`;
+        });
+    }
+    box.innerHTML = palItems.length ? html : `<div class="pal-empty">No matches</div>`;
+    palIndex = 0; highlightPal();
+    box.querySelectorAll(".pal-item").forEach(it => {
+        it.addEventListener("click", () => activatePal(parseInt(it.dataset.i, 10)));
+        it.addEventListener("mousemove", () => { palIndex = parseInt(it.dataset.i, 10); highlightPal(); });
+    });
+}
+
+function highlightPal() {
+    paletteEl.querySelectorAll(".pal-item").forEach(it =>
+        it.classList.toggle("is-active", parseInt(it.dataset.i, 10) === palIndex));
+    const act = paletteEl.querySelector(".pal-item.is-active");
+    if (act) act.scrollIntoView({ block: "nearest" });
+}
+
+function palKeydown(e) {
+    if (e.key === "ArrowDown") { e.preventDefault(); palIndex = Math.min(palItems.length - 1, palIndex + 1); highlightPal(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); palIndex = Math.max(0, palIndex - 1); highlightPal(); }
+    else if (e.key === "Enter") { e.preventDefault(); activatePal(palIndex); }
+    else if (e.key === "Escape") { closePalette(); }
+}
+
+function activatePal(i) {
+    const item = palItems[i];
+    if (!item) return;
+    closePalette();
+    if (item.type === "lead") openLead(item.id);
+    else if (item.type === "action") item.run();
+}
+
 /* ---------- helpers ---------- */
 
 function nullable(v) { const s = (v || "").trim(); return s === "" ? null : s; }
@@ -1140,10 +1299,15 @@ $("#search").addEventListener("input", () => {
 });
 $("#show-samples").addEventListener("change", loadBoard);
 $("#show-archived").addEventListener("change", loadBoard);
-$("#btn-theme").addEventListener("click", () => {
-    const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", next);
-    try { localStorage.setItem("nest-theme", next); } catch (e) {}
+$("#btn-theme").addEventListener("click", toggleTheme);
+const palBtn = $("#btn-palette"); if (palBtn) palBtn.addEventListener("click", openPalette);
+document.addEventListener("keydown", e => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); openPalette(); }
+    else if (e.key === "Escape") {
+        if (paletteEl && !paletteEl.hidden) closePalette();
+        else if (!$("#drawer").hidden) $("#drawer").hidden = true;
+        else if (!$("#modal").hidden) $("#modal").hidden = true;
+    }
 });
 $("#btn-new-lead").addEventListener("click", openNewLead);
 $("#btn-import").addEventListener("click", openImport);
