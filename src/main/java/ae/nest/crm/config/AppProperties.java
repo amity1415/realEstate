@@ -156,6 +156,9 @@ public class AppProperties {
         private int maxContextInteractions = 50;
         /** Provider call timeout in milliseconds. */
         private long timeoutMs = 20000;
+        /** Model pricing for cost estimation (USD per 1M tokens). Defaults suit gpt-4o-mini. */
+        private double inputCostPerMillion = 0.15;
+        private double outputCostPerMillion = 0.60;
 
         public boolean isEnabled() {
             return enabled;
@@ -235,6 +238,22 @@ public class AppProperties {
 
         public void setTimeoutMs(long timeoutMs) {
             this.timeoutMs = timeoutMs;
+        }
+
+        public double getInputCostPerMillion() {
+            return inputCostPerMillion;
+        }
+
+        public void setInputCostPerMillion(double inputCostPerMillion) {
+            this.inputCostPerMillion = inputCostPerMillion;
+        }
+
+        public double getOutputCostPerMillion() {
+            return outputCostPerMillion;
+        }
+
+        public void setOutputCostPerMillion(double outputCostPerMillion) {
+            this.outputCostPerMillion = outputCostPerMillion;
         }
     }
 }
