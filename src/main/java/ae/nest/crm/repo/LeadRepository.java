@@ -30,4 +30,7 @@ public interface LeadRepository
     @Query("select l.stage, count(l) from Lead l where l.workspaceId = :ws and l.archivedAt is null "
             + "group by l.stage")
     List<Object[]> activeStageCounts(@Param("ws") UUID ws);
+
+    /** All active leads across workspaces — for the scheduled re-score job. */
+    List<Lead> findByArchivedAtIsNull();
 }

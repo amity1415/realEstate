@@ -4,6 +4,7 @@ import ae.nest.crm.common.ApiExceptions.BadRequestException;
 import ae.nest.crm.common.ApiExceptions.NotFoundException;
 import ae.nest.crm.domain.InboundSource;
 import ae.nest.crm.domain.Lead;
+import ae.nest.crm.domain.LeadAttribution;
 import ae.nest.crm.domain.NotificationType;
 import ae.nest.crm.inbound.InboundDtos.CreateSourceRequest;
 import ae.nest.crm.inbound.InboundDtos.CreatedSourceResponse;
@@ -16,6 +17,7 @@ import ae.nest.crm.lead.LeadDtos.LeadCreateRequest;
 import ae.nest.crm.lead.LeadService;
 import ae.nest.crm.notification.NotificationService;
 import ae.nest.crm.repo.InboundSourceRepository;
+import ae.nest.crm.repo.LeadAttributionRepository;
 import ae.nest.crm.repo.LeadRepository;
 import ae.nest.crm.domain.InteractionType;
 import java.nio.charset.StandardCharsets;
@@ -45,6 +47,7 @@ public class InboundService {
     private final LeadService leadService;
     private final InteractionService interactions;
     private final NotificationService notifications;
+    private final LeadAttributionRepository attribution;
     private final SecureRandom random = new SecureRandom();
     private final ConcurrentHashMap<UUID, java.util.Deque<Instant>> rate = new ConcurrentHashMap<>();
 
@@ -53,12 +56,14 @@ public class InboundService {
             LeadRepository leads,
             LeadService leadService,
             InteractionService interactions,
-            NotificationService notifications) {
+            NotificationService notifications,
+            LeadAttributionRepository attribution) {
         this.sources = sources;
         this.leads = leads;
         this.leadService = leadService;
         this.interactions = interactions;
         this.notifications = notifications;
+        this.attribution = attribution;
     }
 
     @Transactional
@@ -122,6 +127,7 @@ public class InboundService {
                     workspaceId, req.email().trim().toLowerCase()).orElse(null);
             if (existing != null) {
                 logEnquiry(workspaceId, owner, existing.getId(), req, source.getName());
+                upsertAttribution(workspaceId, existing.getId(), req, source.getName());
                 notify(workspaceId, owner, existing.getId(), source.getName(), true);
                 return new InboundAck("accepted", existing.getId().toString(), true);
             }
@@ -133,8 +139,43 @@ public class InboundService {
         var lead = leadService.create(workspaceId, owner, create);
         UUID leadId = UUID.fromString(lead.id());
         logEnquiry(workspaceId, owner, leadId, req, source.getName());
+        upsertAttribution(workspaceId, leadId, req, source.getName());
         notify(workspaceId, owner, leadId, source.getName(), false);
         return new InboundAck("accepted", lead.id(), false);
+    }
+
+    /** Record where the lead came from. First touch is kept; last touch advances on every enquiry. */
+    private void upsertAttribution(
+            UUID workspaceId, UUID leadId, InboundLeadRequest req, String sourceName) {
+        Instant now = Instant.now();
+        LeadAttribution a = attribution.findByLeadId(leadId).orElseGet(() -> {
+            LeadAttribution fresh = new LeadAttribution();
+            fresh.setLeadId(leadId);
+            fresh.setWorkspaceId(workspaceId);
+            fresh.setFirstTouchAt(now);
+            return fresh;
+        });
+        a.setChannel(firstNonBlank(req.channel(), sourceName));
+        if (req.utmSource() != null && !req.utmSource().isBlank()) {
+            a.setUtmSource(req.utmSource());
+        }
+        if (req.utmMedium() != null && !req.utmMedium().isBlank()) {
+            a.setUtmMedium(req.utmMedium());
+        }
+        if (req.utmCampaign() != null && !req.utmCampaign().isBlank()) {
+            a.setUtmCampaign(req.utmCampaign());
+        }
+        if (req.adId() != null && !req.adId().isBlank()) {
+            a.setAdId(req.adId());
+        }
+        if (req.formId() != null && !req.formId().isBlank()) {
+            a.setFormId(req.formId());
+        }
+        if (req.landingUrl() != null && !req.landingUrl().isBlank()) {
+            a.setLandingUrl(req.landingUrl());
+        }
+        a.setLastTouchAt(now);
+        attribution.save(a);
     }
 
     private void logEnquiry(UUID workspaceId, UUID owner, UUID leadId, InboundLeadRequest req,

@@ -1,5 +1,6 @@
 package ae.nest.crm.lead;
 
+import ae.nest.crm.domain.LeadSegment;
 import ae.nest.crm.domain.LeadStage;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Min;
@@ -87,6 +88,24 @@ public final class LeadDtos {
             String emirate,
             boolean sample,
             Instant archivedAt,
+            Instant updatedAt,
+            Integer score,
+            LeadSegment segment) {}
+
+    /** A high-intent lead for the "Hot leads" view, with the transparent factors behind the score. */
+    public record HotLeadSummary(
+            String id,
+            String name,
+            String email,
+            String phone,
+            LeadStage stage,
+            String emirate,
+            BigDecimal budgetAed,
+            Integer bedrooms,
+            int score,
+            LeadSegment segment,
+            List<Map<String, Object>> factors,
+            Instant computedAt,
             Instant updatedAt) {}
 
     public record StageEventDto(

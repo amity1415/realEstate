@@ -170,6 +170,44 @@ class CrmApiIntegrationTest {
     }
 
     @Test
+    void newLeadIsScoredAndSegmentShowsOnTheBoard() throws Exception {
+        String id = createLead(owner, "Scored", 1500000, 2, "Dubai");
+
+        // The board summary carries the computed score + segment.
+        mvc.perform(get("/api/v1/leads?search=Scored").with(user(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(id))
+                .andExpect(jsonPath("$.content[0].score").isNumber())
+                .andExpect(jsonPath("$.content[0].segment").isNotEmpty());
+    }
+
+    @Test
+    void engagementPushesALeadOntoTheHotList() throws Exception {
+        String id = createLead(owner, "Engaged", 2000000, 3, "Dubai");
+        // Move to a late stage (keeping the fit fields) and log recent interactions -> HOT.
+        String move = objectMapper.writeValueAsString(java.util.Map.of(
+                "name", "Engaged", "stage", "VIEWING", "budgetAed", 2000000, "bedrooms", 3,
+                "emirate", "Dubai", "version", 0));
+        mvc.perform(patch("/api/v1/leads/" + id).with(user(owner)).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(move))
+                .andExpect(status().isOk());
+        for (int i = 0; i < 3; i++) {
+            mvc.perform(post("/api/v1/leads/" + id + "/interactions").with(user(owner)).with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(java.util.Map.of(
+                                    "type", "CALL", "text", "Spoke with the client"))))
+                    .andExpect(status().isCreated());
+        }
+
+        mvc.perform(get("/api/v1/leads/hot").with(user(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(id))
+                .andExpect(jsonPath("$.content[0].segment").value("HOT"))
+                .andExpect(jsonPath("$.content[0].factors").isArray())
+                .andExpect(jsonPath("$.content[0].factors[0].factor").isNotEmpty());
+    }
+
+    @Test
     void exportCsvNeutralisesFormulaInjection() throws Exception {
         createLead(owner, "=HYPERLINK(evil)", 500000, 1, "Dubai");
         mvc.perform(get("/api/v1/exports/leads?format=csv").with(user(owner)))

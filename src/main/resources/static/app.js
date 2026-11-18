@@ -266,6 +266,7 @@ function leadCard(l) {
     av.style.background = avatarColor(l.name);
     top.appendChild(av);
     top.appendChild(el("div", "name", l.name));
+    if (l.score != null && l.segment) top.appendChild(scoreChip(l.score, l.segment));
     card.appendChild(top);
 
     const meta = el("div", "meta");
@@ -287,6 +288,22 @@ function leadCard(l) {
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openLead(l.id); }
     });
     return card;
+}
+
+const SEGMENTS = {
+    HOT:     { label: "Hot",     color: "#b23b2e", bg: "#fbeae7", on: "#8f2d22" },
+    WARM:    { label: "Warm",    color: "#9a6b16", bg: "#f7eecf", on: "#7d5f14" },
+    NURTURE: { label: "Nurture", color: "#2f67d6", bg: "#e6eefb", on: "#2a4ea8" },
+    COLD:    { label: "Cold",    color: "#6d7c73", bg: "#eceeea", on: "#51605a" },
+};
+
+function scoreChip(score, segment) {
+    const s = SEGMENTS[segment] || SEGMENTS.COLD;
+    const chip = el("span", "score-chip", String(score));
+    chip.style.background = s.bg;
+    chip.style.color = s.on;
+    chip.title = s.label + " lead · score " + score + "/100";
+    return chip;
 }
 
 function initials(name) {
@@ -314,15 +331,107 @@ const STAGE_COLORS = { NEW: "#64748b", CONTACTED: "#3b82f6", QUALIFIED: "#7c5cfc
     VIEWING: "#c49a46", WON: "#1c855b", LOST: "#b2544a" };
 
 function showView(view) {
-    const analytics = view === "analytics";
-    $("#analytics").hidden = !analytics;
-    $("#board").hidden = analytics;
-    $("#metrics").hidden = analytics;
-    const tb = document.querySelector(".toolbar"); if (tb) tb.hidden = analytics;
-    $("#page-title").textContent = analytics ? "Analytics" : "Pipeline";
-    $("#nav-pipeline").classList.toggle("is-active", !analytics);
-    $("#nav-analytics").classList.toggle("is-active", analytics);
-    if (analytics) loadAnalytics(state.analyticsDays || 90);
+    const titles = { board: "Pipeline", analytics: "Analytics", hot: "Hot leads" };
+    const isBoard = view === "board";
+    $("#board").hidden = !isBoard;
+    $("#metrics").hidden = !isBoard;
+    $("#analytics").hidden = view !== "analytics";
+    $("#hot").hidden = view !== "hot";
+    const tb = document.querySelector(".toolbar"); if (tb) tb.hidden = !isBoard;
+    $("#page-title").textContent = titles[view] || "Pipeline";
+    $("#nav-pipeline").classList.toggle("is-active", isBoard);
+    $("#nav-analytics").classList.toggle("is-active", view === "analytics");
+    const nh = $("#nav-hot"); if (nh) nh.classList.toggle("is-active", view === "hot");
+    if (view === "analytics") loadAnalytics(state.analyticsDays || 90);
+    else if (view === "hot") loadHot(state.hotSegment || "");
+}
+
+async function loadHot(segment) {
+    state.hotSegment = segment || "";
+    const box = $("#hot");
+    const filters = ["", "HOT", "WARM", "NURTURE"];
+    const chips = filters.map(f => {
+        const active = (state.hotSegment || "") === f ? " is-active" : "";
+        const label = f ? (SEGMENTS[f] ? SEGMENTS[f].label : f) : "All";
+        return `<button class="hot-filter${active}" data-seg="${f}">${label}</button>`;
+    }).join("");
+    box.innerHTML = `<div class="hot-head">
+        <div><h2>Hot leads</h2>
+            <p class="muted">Highest-intent buyers first, with the reasons behind each score. Transparent, rule-based — no black box.</p></div>
+        <div class="hot-filters">${chips}</div></div>
+        <div class="hot-list">
+            <div class="skel" style="height:72px;border-radius:14px;margin-bottom:10px"></div>
+            <div class="skel" style="height:72px;border-radius:14px;margin-bottom:10px"></div>
+            <div class="skel" style="height:72px;border-radius:14px"></div></div>`;
+    box.querySelectorAll(".hot-filter").forEach(b =>
+        b.addEventListener("click", () => loadHot(b.dataset.seg)));
+
+    const q = new URLSearchParams();
+    q.set("size", "100");
+    if (state.hotSegment) q.set("segment", state.hotSegment);
+    let page;
+    try { page = await api("GET", "/leads/hot?" + q.toString()); }
+    catch (e) { box.querySelector(".hot-list").innerHTML = `<p class="form-error">${esc(e.message)}</p>`; return; }
+
+    const list = box.querySelector(".hot-list");
+    list.innerHTML = "";
+    if (!page.content.length) {
+        list.innerHTML = `<div class="hot-empty">
+            <p>No ${state.hotSegment ? (SEGMENTS[state.hotSegment] ? SEGMENTS[state.hotSegment].label.toLowerCase() : "") + " " : ""}leads yet.</p>
+            <p class="muted">Scores update automatically as you log calls, viewings and messages.</p></div>`;
+        return;
+    }
+    page.content.forEach((l, i) => list.appendChild(hotRow(l, i + 1)));
+}
+
+function hotRow(l, rank) {
+    const s = SEGMENTS[l.segment] || SEGMENTS.COLD;
+    const row = el("div", "hot-row");
+    row.tabIndex = 0;
+    row.setAttribute("role", "button");
+
+    row.appendChild(el("div", "hot-rank", "#" + rank));
+
+    const ring = el("div", "hot-score");
+    ring.style.background = s.bg;
+    ring.style.color = s.on;
+    ring.innerHTML = `<strong>${l.score}</strong><span>${s.label}</span>`;
+    row.appendChild(ring);
+
+    const mid = el("div", "hot-mid");
+    const nameRow = el("div", "hot-name-row");
+    const av = el("span", "card-av", initials(l.name));
+    av.style.background = avatarColor(l.name);
+    nameRow.appendChild(av);
+    nameRow.appendChild(el("span", "hot-name", l.name));
+    nameRow.appendChild(el("span", "hot-stage", l.stage));
+    mid.appendChild(nameRow);
+
+    const meta = el("div", "hot-meta");
+    if (l.budgetAed != null) meta.appendChild(el("span", null, money(l.budgetAed)));
+    if (l.bedrooms != null) meta.appendChild(el("span", null, bedroomsLabel(l.bedrooms)));
+    if (l.emirate) meta.appendChild(el("span", null, l.emirate));
+    if (l.email) meta.appendChild(el("span", null, l.email));
+    if (meta.children.length) mid.appendChild(meta);
+
+    const factors = Array.isArray(l.factors) ? l.factors : [];
+    if (factors.length) {
+        const why = el("div", "hot-why");
+        factors.forEach(f => {
+            const chip = el("span", "why-chip");
+            chip.innerHTML = `${esc(String(f.factor))} <b>+${esc(String(f.points))}</b>`;
+            why.appendChild(chip);
+        });
+        mid.appendChild(why);
+    }
+    row.appendChild(mid);
+
+    const open = () => openLead(l.id);
+    row.addEventListener("click", open);
+    row.addEventListener("keydown", e => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); }
+    });
+    return row;
 }
 
 async function loadAnalytics(days) {
@@ -1254,6 +1363,7 @@ function paletteActions() {
         { label: "New lead", hint: "Create", run: openNewLead, icon: "M12 5v14M5 12h14" },
         { label: "Inventory", hint: "Open", run: openInventory, icon: "M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7" },
         { label: "Analytics", hint: "View", run: () => showView("analytics"), icon: "M4 20V10M10 20V4M16 20v-7M2 20h20" },
+        { label: "Hot leads", hint: "View", run: () => showView("hot"), icon: "M12 3c1 3-1 4-1 6a3 3 0 0 0 6 0c0-1-.4-2-1-3 2 1 4 4 4 7a7 7 0 0 1-14 0c0-4 3-6 6-10z" },
         { label: "Pipeline", hint: "View", run: () => showView("board"), icon: "M4 6h6v12H4zM14 6h6v7h-6z" },
         { label: "Import leads", hint: "Data", run: openImport, icon: "M12 3v12M8 11l4 4 4-4M4 21h16" },
         { label: "Export CSV", hint: "Data", run: () => download("/exports/leads?format=csv", "leads.csv"), icon: "M12 21V9M8 13l4-4 4 4M4 3h16" },
@@ -1411,6 +1521,7 @@ $("#btn-theme").addEventListener("click", toggleTheme);
 const palBtn = $("#btn-palette"); if (palBtn) palBtn.addEventListener("click", openPalette);
 $("#nav-pipeline").addEventListener("click", () => showView("board"));
 $("#nav-analytics").addEventListener("click", () => showView("analytics"));
+const navHot = $("#nav-hot"); if (navHot) navHot.addEventListener("click", () => showView("hot"));
 document.addEventListener("keydown", e => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); openPalette(); }
     else if (e.key === "Escape") {

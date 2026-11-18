@@ -27,7 +27,14 @@ public final class InboundDtos {
             @Size(max = 2000) String message,
             @Min(0) BigDecimal budgetAed,
             @Min(0) Integer bedrooms,
-            @Size(max = 120) String emirate) {}
+            @Size(max = 120) String emirate,
+            @Size(max = 60) String channel,
+            @Size(max = 200) String utmSource,
+            @Size(max = 200) String utmMedium,
+            @Size(max = 200) String utmCampaign,
+            @Size(max = 120) String adId,
+            @Size(max = 120) String formId,
+            @Size(max = 500) String landingUrl) {}
 
     public record InboundAck(String status, String leadId, boolean duplicate) {}
 }

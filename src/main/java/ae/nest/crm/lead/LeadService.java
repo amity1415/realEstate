@@ -6,9 +6,12 @@ import ae.nest.crm.common.AuditService;
 import ae.nest.crm.domain.AppUser;
 import ae.nest.crm.domain.Lead;
 import ae.nest.crm.domain.LeadRequirement;
+import ae.nest.crm.domain.LeadScore;
+import ae.nest.crm.domain.LeadSegment;
 import ae.nest.crm.domain.LeadStage;
 import ae.nest.crm.domain.LeadStageEvent;
 import ae.nest.crm.domain.NotificationType;
+import ae.nest.crm.lead.LeadDtos.HotLeadSummary;
 import ae.nest.crm.lead.LeadDtos.LeadCreateRequest;
 import ae.nest.crm.lead.LeadDtos.LeadResponse;
 import ae.nest.crm.lead.LeadDtos.LeadSummary;
@@ -19,7 +22,9 @@ import ae.nest.crm.notification.NotificationService;
 import ae.nest.crm.repo.AppUserRepository;
 import ae.nest.crm.repo.LeadRepository;
 import ae.nest.crm.repo.LeadRequirementRepository;
+import ae.nest.crm.repo.LeadScoreRepository;
 import ae.nest.crm.repo.LeadStageEventRepository;
+import ae.nest.crm.scoring.LeadScoreService;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,6 +45,8 @@ public class LeadService {
     private final AppUserRepository users;
     private final NotificationService notifications;
     private final AuditService audit;
+    private final LeadScoreService scoreService;
+    private final LeadScoreRepository scores;
 
     public LeadService(
             LeadRepository leads,
@@ -47,13 +54,17 @@ public class LeadService {
             LeadStageEventRepository stageEvents,
             AppUserRepository users,
             NotificationService notifications,
-            AuditService audit) {
+            AuditService audit,
+            LeadScoreService scoreService,
+            LeadScoreRepository scores) {
         this.leads = leads;
         this.requirements = requirements;
         this.stageEvents = stageEvents;
         this.users = users;
         this.notifications = notifications;
         this.audit = audit;
+        this.scoreService = scoreService;
+        this.scores = scores;
     }
 
     @Transactional(readOnly = true)
@@ -75,7 +86,20 @@ public class LeadService {
         if (!includeArchived) {
             spec = spec.and(LeadSpecifications.archivedIs(false));
         }
-        return leads.findAll(spec, pageable).map(LeadMapper::toSummary);
+        Page<Lead> page = leads.findAll(spec, pageable);
+        List<UUID> ids = page.map(Lead::getId).getContent();
+        Map<UUID, LeadScore> byLead = scoreService.scoresFor(workspaceId, ids);
+        return page.map(lead -> LeadMapper.toSummary(lead, byLead.get(lead.getId())));
+    }
+
+    /** Highest-intent leads first, optionally narrowed to one segment, with their scoring factors. */
+    @Transactional(readOnly = true)
+    public Page<HotLeadSummary> hotLeads(UUID workspaceId, LeadSegment segment, Pageable pageable) {
+        Page<LeadScore> page = scores.findHot(workspaceId, segment, pageable);
+        Map<UUID, Lead> byId = new java.util.HashMap<>();
+        leads.findAllById(page.map(LeadScore::getLeadId).getContent())
+                .forEach(l -> byId.put(l.getId(), l));
+        return page.map(s -> LeadMapper.toHotSummary(byId.get(s.getLeadId()), s));
     }
 
     @Transactional(readOnly = true)
@@ -100,6 +124,7 @@ public class LeadService {
 
         recordStageChange(lead, ownerId, null, initialStage, "Lead created");
         LeadRequirement saved = upsertRequirement(lead.getId(), req.requirement());
+        scoreService.recomputeForLead(lead);
 
         audit.record(workspaceId, ownerId, "LEAD_CREATE", "OK",
                 Map.of("leadId", lead.getId().toString(), "sample", lead.isSample()));
@@ -129,6 +154,7 @@ public class LeadService {
                     req.stageReason() == null ? "Stage updated" : req.stageReason());
         }
         LeadRequirement saved = upsertRequirement(lead.getId(), req.requirement());
+        scoreService.recomputeForLead(lead);
 
         audit.record(workspaceId, authorId, "LEAD_UPDATE", "OK",
                 Map.of("leadId", lead.getId().toString(), "stageChanged", stageChanged));

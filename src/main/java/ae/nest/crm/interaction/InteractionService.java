@@ -8,6 +8,7 @@ import ae.nest.crm.interaction.InteractionDtos.InteractionCreateRequest;
 import ae.nest.crm.interaction.InteractionDtos.InteractionResponse;
 import ae.nest.crm.repo.InteractionRepository;
 import ae.nest.crm.repo.LeadRepository;
+import ae.nest.crm.scoring.LeadScoreService;
 import java.time.Instant;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -20,16 +21,19 @@ public class InteractionService {
 
     private final InteractionRepository interactions;
     private final LeadRepository leads;
+    private final LeadScoreService scoreService;
 
-    public InteractionService(InteractionRepository interactions, LeadRepository leads) {
+    public InteractionService(
+            InteractionRepository interactions, LeadRepository leads, LeadScoreService scoreService) {
         this.interactions = interactions;
         this.leads = leads;
+        this.scoreService = scoreService;
     }
 
     @Transactional
     public InteractionResponse add(
             UUID workspaceId, UUID authorId, UUID leadId, InteractionCreateRequest req) {
-        requireLead(workspaceId, leadId);
+        Lead lead = requireLead(workspaceId, leadId);
         Interaction i = new Interaction();
         i.setLeadId(leadId);
         i.setWorkspaceId(workspaceId);
@@ -38,7 +42,9 @@ public class InteractionService {
         i.setText(req.text().trim());
         i.setSource(req.source() == null ? "manual" : req.source());
         i.setAuthorId(authorId);
-        return toResponse(interactions.save(i));
+        InteractionResponse saved = toResponse(interactions.save(i));
+        scoreService.recomputeForLead(lead);
+        return saved;
     }
 
     @Transactional(readOnly = true)

@@ -2,7 +2,9 @@ package ae.nest.crm.lead;
 
 import ae.nest.crm.domain.Lead;
 import ae.nest.crm.domain.LeadRequirement;
+import ae.nest.crm.domain.LeadScore;
 import ae.nest.crm.domain.LeadStageEvent;
+import ae.nest.crm.lead.LeadDtos.HotLeadSummary;
 import ae.nest.crm.lead.LeadDtos.LeadResponse;
 import ae.nest.crm.lead.LeadDtos.LeadSummary;
 import ae.nest.crm.lead.LeadDtos.RequirementDto;
@@ -48,6 +50,10 @@ final class LeadMapper {
     }
 
     static LeadSummary toSummary(Lead lead) {
+        return toSummary(lead, null);
+    }
+
+    static LeadSummary toSummary(Lead lead, LeadScore score) {
         return new LeadSummary(
                 lead.getId().toString(),
                 lead.getName(),
@@ -60,6 +66,25 @@ final class LeadMapper {
                 lead.getEmirate(),
                 lead.isSample(),
                 lead.getArchivedAt(),
+                lead.getUpdatedAt(),
+                score == null ? null : score.getScore(),
+                score == null ? null : score.getSegment());
+    }
+
+    static HotLeadSummary toHotSummary(Lead lead, LeadScore score) {
+        return new HotLeadSummary(
+                lead.getId().toString(),
+                lead.getName(),
+                lead.getEmail(),
+                lead.getPhone(),
+                lead.getStage(),
+                lead.getEmirate(),
+                lead.getBudgetAed(),
+                lead.getBedrooms(),
+                score.getScore(),
+                score.getSegment(),
+                score.getFactors() == null ? List.of() : score.getFactors(),
+                score.getComputedAt(),
                 lead.getUpdatedAt());
     }
 

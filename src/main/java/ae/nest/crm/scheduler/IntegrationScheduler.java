@@ -2,6 +2,7 @@ package ae.nest.crm.scheduler;
 
 import ae.nest.crm.notification.ReminderService;
 import ae.nest.crm.outbox.OutboxDispatcher;
+import ae.nest.crm.scoring.LeadScoreService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -20,10 +21,13 @@ public class IntegrationScheduler {
 
     private final ReminderService reminders;
     private final OutboxDispatcher outbox;
+    private final LeadScoreService scores;
 
-    public IntegrationScheduler(ReminderService reminders, OutboxDispatcher outbox) {
+    public IntegrationScheduler(
+            ReminderService reminders, OutboxDispatcher outbox, LeadScoreService scores) {
         this.reminders = reminders;
         this.outbox = outbox;
+        this.scores = scores;
     }
 
     @Scheduled(fixedDelayString = "${app.scheduling.reminders-ms:60000}", initialDelay = 20000)
@@ -44,6 +48,20 @@ public class IntegrationScheduler {
             outbox.dispatchDue(50);
         } catch (RuntimeException e) {
             log.warn("Outbox dispatcher failed: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Full re-score sweep. Per-event recompute keeps a lead fresh on contact, but recency decays with
+     * time alone (a lead contacted "this week" becomes "this month"), so a periodic sweep re-grades
+     * everyone. Default hourly.
+     */
+    @Scheduled(fixedDelayString = "${app.scheduling.rescore-ms:3600000}", initialDelay = 45000)
+    public void rescore() {
+        try {
+            scores.recomputeAll();
+        } catch (RuntimeException e) {
+            log.warn("Lead re-score sweep failed: {}", e.getMessage());
         }
     }
 }
