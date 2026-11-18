@@ -125,23 +125,38 @@ async function refresh() {
 }
 
 async function loadMetrics() {
+    const box = $("#metrics");
+    box.innerHTML = '<div class="skel skel-metric"></div>'.repeat(4);
     try {
         const m = await api("GET", "/metrics");
-        const box = $("#metrics");
-        box.innerHTML = "";
         const items = [
-            ["Active leads", m.activeLeads],
-            ["Open tasks", m.openTasks],
-            ["Overdue", m.overdueTasks],
-            ["Samples", m.sampleLeads],
+            ["Active leads", m.activeLeads, "accent-green",
+                '<path d="M9 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 20a6 6 0 0 1 12 0M17.5 20a6 6 0 0 0-4.6-5.8"/>'],
+            ["Open tasks", m.openTasks, "accent-blue",
+                '<path d="M9 12l2.2 2.2L15.5 10M12 3a9 9 0 1 0 9 9"/>'],
+            ["Overdue", m.overdueTasks, "accent-red",
+                '<path d="M12 8v4.4l3 1.8M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z"/>'],
+            ["Samples", m.sampleLeads, "accent-gold",
+                '<path d="M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7"/>'],
         ];
-        items.forEach(([lbl, num]) => {
-            const card = el("div", "metric");
-            card.appendChild(el("div", "num", num));
-            card.appendChild(el("div", "lbl", lbl));
-            box.appendChild(card);
-        });
-    } catch (e) { /* non-fatal */ }
+        box.innerHTML = items.map(([lbl, num, acc, icon]) => `
+            <div class="metric ${acc}">
+                <div class="metric-ic"><svg viewBox="0 0 24 24" class="ic">${icon}</svg></div>
+                <div><div class="num" data-to="${num}">0</div><div class="lbl">${esc(lbl)}</div></div>
+            </div>`).join("");
+        box.querySelectorAll(".num").forEach(animateCount);
+    } catch (e) { box.innerHTML = ""; }
+}
+
+function animateCount(node) {
+    const to = parseInt(node.getAttribute("data-to"), 10) || 0;
+    if (to <= 0) { node.textContent = "0"; return; }
+    const dur = 560, t0 = performance.now();
+    (function step(t) {
+        const p = Math.min(1, (t - t0) / dur);
+        node.textContent = Math.round(to * (1 - Math.pow(1 - p, 3))).toLocaleString();
+        if (p < 1) requestAnimationFrame(step);
+    })(t0);
 }
 
 async function loadBoard() {
@@ -154,38 +169,103 @@ async function loadBoard() {
     if (includeArchived) params.set("includeArchived", "true");
     if (!showSamples) params.set("sample", "false");
 
-    const page = await api("GET", "/leads?" + params.toString());
+    const board = $("#board");
+    board.innerHTML = boardSkeleton();
+    let page;
+    try { page = await api("GET", "/leads?" + params.toString()); }
+    catch (e) { board.innerHTML = ""; return; }
+
     const byStage = {};
     STAGES.forEach(s => byStage[s] = []);
     page.content.forEach(l => { (byStage[l.stage] || (byStage[l.stage] = [])).push(l); });
 
-    const board = $("#board");
     board.innerHTML = "";
+    if (page.content.length === 0 && !search && !includeArchived) {
+        board.appendChild(boardEmpty());
+        return;
+    }
     STAGES.forEach(stage => {
         const col = el("div", "column");
         const head = el("div", "column-head");
         head.appendChild(el("span", "title", stage));
         head.appendChild(el("span", "count", String(byStage[stage].length)));
         col.appendChild(head);
-        byStage[stage].forEach(l => col.appendChild(leadCard(l)));
+        if (byStage[stage].length === 0) {
+            col.appendChild(el("div", "col-empty", "No leads"));
+        } else {
+            byStage[stage].forEach(l => col.appendChild(leadCard(l)));
+        }
         board.appendChild(col);
     });
 }
 
+function boardSkeleton() {
+    const col = '<div class="column"><div class="skel skel-head"></div>'
+        + '<div class="skel skel-card"></div><div class="skel skel-card"></div></div>';
+    return col.repeat(6);
+}
+
+function boardEmpty() {
+    const wrap = el("div", "board-empty");
+    wrap.innerHTML = `<div class="board-empty-inner">
+        <svg viewBox="0 0 24 24" class="ic"><path d="M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10"/></svg>
+        <h3>No leads yet</h3>
+        <p>Add your first buyer, or import an existing backup, to start building your pipeline.</p>
+        <button class="btn btn-primary" id="empty-new-lead">+ Add your first lead</button></div>`;
+    wrap.querySelector("#empty-new-lead").addEventListener("click", openNewLead);
+    return wrap;
+}
+
 function leadCard(l) {
     const card = el("div", "card");
-    card.appendChild(el("div", "name", l.name));
+    card.tabIndex = 0;
+    card.setAttribute("role", "button");
+
+    const top = el("div", "card-top");
+    const av = el("div", "card-av", initials(l.name));
+    av.style.background = avatarColor(l.name);
+    top.appendChild(av);
+    top.appendChild(el("div", "name", l.name));
+    card.appendChild(top);
+
     const meta = el("div", "meta");
     if (l.budgetAed != null) meta.appendChild(el("span", null, money(l.budgetAed)));
     if (l.bedrooms != null) meta.appendChild(el("span", null, bedroomsLabel(l.bedrooms)));
     if (l.emirate) meta.appendChild(el("span", null, l.emirate));
-    card.appendChild(meta);
+    if (meta.children.length) card.appendChild(meta);
+
+    const foot = el("div", "card-foot");
+    foot.appendChild(el("span", "card-time", l.updatedAt ? timeAgo(l.updatedAt) : ""));
     const badges = el("div", "meta badges");
     if (l.sample) badges.appendChild(el("span", "badge badge-sample", "Sample"));
     if (l.archivedAt) badges.appendChild(el("span", "badge badge-archived", "Archived"));
-    if (badges.children.length) card.appendChild(badges);
+    foot.appendChild(badges);
+    card.appendChild(foot);
+
     card.addEventListener("click", () => openLead(l.id));
+    card.addEventListener("keydown", e => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openLead(l.id); }
+    });
     return card;
+}
+
+function initials(name) {
+    const p = (name || "?").trim().split(/\s+/);
+    return ((p[0] || "?").charAt(0) + (p[1] ? p[1].charAt(0) : "")).toUpperCase();
+}
+const AV_COLORS = ["#166a49", "#2f67d6", "#7c5cfc", "#b8862f", "#1c855b", "#b2544a", "#0e7490", "#8a3ffc"];
+function avatarColor(name) {
+    let h = 0; const s = name || "?";
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return AV_COLORS[h % AV_COLORS.length];
+}
+function timeAgo(iso) {
+    const diff = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+    if (diff < 60) return "just now";
+    if (diff < 3600) return Math.floor(diff / 60) + "m ago";
+    if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
+    if (diff < 604800) return Math.floor(diff / 86400) + "d ago";
+    return fmtDate(iso);
 }
 
 /* ---------- lead detail ---------- */
@@ -1060,6 +1140,11 @@ $("#search").addEventListener("input", () => {
 });
 $("#show-samples").addEventListener("change", loadBoard);
 $("#show-archived").addEventListener("change", loadBoard);
+$("#btn-theme").addEventListener("click", () => {
+    const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    try { localStorage.setItem("nest-theme", next); } catch (e) {}
+});
 $("#btn-new-lead").addEventListener("click", openNewLead);
 $("#btn-import").addEventListener("click", openImport);
 $("#btn-inventory").addEventListener("click", openInventory);
