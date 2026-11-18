@@ -29,4 +29,9 @@ public interface LeadStageEventRepository extends JpaRepository<LeadStageEvent, 
             @Param("ws") UUID workspaceId,
             @Param("stage") LeadStage stage,
             @Param("ids") List<UUID> ids);
+
+    /** Distinct cohort leads that reached each stage, grouped, in one query. */
+    @Query("select e.newStage, count(distinct e.leadId) from LeadStageEvent e "
+            + "where e.workspaceId = :ws and e.leadId in :ids group by e.newStage")
+    List<Object[]> reachedCounts(@Param("ws") UUID workspaceId, @Param("ids") List<UUID> ids);
 }

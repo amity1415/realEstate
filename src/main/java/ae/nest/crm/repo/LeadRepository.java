@@ -2,10 +2,13 @@ package ae.nest.crm.repo;
 
 import ae.nest.crm.domain.Lead;
 import ae.nest.crm.domain.LeadStage;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface LeadRepository
         extends JpaRepository<Lead, UUID>, JpaSpecificationExecutor<Lead> {
@@ -22,4 +25,9 @@ public interface LeadRepository
     long countByWorkspaceIdAndStageAndArchivedAtIsNull(UUID workspaceId, LeadStage stage);
 
     long countByWorkspaceIdAndSampleTrueAndArchivedAtIsNull(UUID workspaceId);
+
+    /** Active (non-archived) lead counts grouped by stage, in a single query. */
+    @Query("select l.stage, count(l) from Lead l where l.workspaceId = :ws and l.archivedAt is null "
+            + "group by l.stage")
+    List<Object[]> activeStageCounts(@Param("ws") UUID ws);
 }

@@ -49,14 +49,20 @@ public class MetricsController {
 
         Map<String, Long> stageCounts = new LinkedHashMap<>();
         for (LeadStage stage : LeadStage.values()) {
-            stageCounts.put(stage.name(),
-                    leads.countByWorkspaceIdAndStageAndArchivedAtIsNull(ws, stage));
+            stageCounts.put(stage.name(), 0L);
+        }
+        long active = 0;
+        for (Object[] row : leads.activeStageCounts(ws)) {   // single grouped query
+            LeadStage stage = (LeadStage) row[0];
+            long count = ((Number) row[1]).longValue();
+            stageCounts.put(stage.name(), count);
+            active += count;
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("asOf", Instant.now().toString());
         result.put("note", "Current snapshot of active leads by stage. Not a conversion rate.");
-        result.put("activeLeads", leads.countByWorkspaceIdAndArchivedAtIsNull(ws));
+        result.put("activeLeads", active);
         result.put("sampleLeads", leads.countByWorkspaceIdAndSampleTrueAndArchivedAtIsNull(ws));
         result.put("currentStageCounts", stageCounts);
         result.put("openTasks", tasks.countByWorkspaceIdAndStatus(ws, TaskStatus.OPEN));
@@ -83,10 +89,16 @@ public class MetricsController {
         List<UUID> cohort = stageEvents.cohortLeadIds(ws, start, end);
         int cohortSize = cohort.size();
 
+        java.util.Map<LeadStage, Long> reachedMap = new java.util.EnumMap<>(LeadStage.class);
+        if (!cohort.isEmpty()) {
+            for (Object[] row : stageEvents.reachedCounts(ws, cohort)) {   // single grouped query
+                reachedMap.put((LeadStage) row[0], ((Number) row[1]).longValue());
+            }
+        }
         Map<String, Object> reached = new LinkedHashMap<>();
         Map<String, Object> rates = new LinkedHashMap<>();
         for (LeadStage stage : LeadStage.values()) {
-            long count = cohort.isEmpty() ? 0 : stageEvents.countReached(ws, stage, cohort);
+            long count = reachedMap.getOrDefault(stage, 0L);
             reached.put(stage.name(), count);
             rates.put(stage.name(), cohortSize == 0 ? null : round((double) count / cohortSize));
         }

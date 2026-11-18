@@ -1368,8 +1368,11 @@ function intOrNull(v) { const s = (v || "").trim(); return s === "" ? null : par
 /* ---------- events ---------- */
 
 document.addEventListener("click", ev => {
-    const close = ev.target.getAttribute && ev.target.getAttribute("data-close");
-    if (close) document.getElementById(close).hidden = true;
+    const el = ev.target.closest && ev.target.closest("[data-close]");
+    if (el) {
+        const target = document.getElementById(el.getAttribute("data-close"));
+        if (target) target.hidden = true;
+    }
 });
 
 $("#login-form").addEventListener("submit", async ev => {
