@@ -308,6 +308,109 @@ function timeAgo(iso) {
     return fmtDate(iso);
 }
 
+/* ---------- view switching + analytics ---------- */
+
+const STAGE_COLORS = { NEW: "#64748b", CONTACTED: "#3b82f6", QUALIFIED: "#7c5cfc",
+    VIEWING: "#c49a46", WON: "#1c855b", LOST: "#b2544a" };
+
+function showView(view) {
+    const analytics = view === "analytics";
+    $("#analytics").hidden = !analytics;
+    $("#board").hidden = analytics;
+    $("#metrics").hidden = analytics;
+    const tb = document.querySelector(".toolbar"); if (tb) tb.hidden = analytics;
+    $("#page-title").textContent = analytics ? "Analytics" : "Pipeline";
+    $("#nav-pipeline").classList.toggle("is-active", !analytics);
+    $("#nav-analytics").classList.toggle("is-active", analytics);
+    if (analytics) loadAnalytics(state.analyticsDays || 90);
+}
+
+async function loadAnalytics(days) {
+    state.analyticsDays = days;
+    const box = $("#analytics");
+    box.innerHTML = `<div class="analytics-head">
+        <div><h2>Analytics</h2><p class="muted">Pipeline health &amp; cohort conversion.</p></div>
+        <select id="an-range" class="select">
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="365">Last 12 months</option>
+        </select></div>
+        <div class="an-grid">
+            <div class="skel" style="height:112px;border-radius:15px"></div>
+            <div class="skel" style="height:260px;border-radius:15px"></div>
+            <div class="skel" style="height:260px;border-radius:15px"></div></div>`;
+    const sel = box.querySelector("#an-range");
+    sel.value = String(days);
+    sel.addEventListener("change", () => loadAnalytics(parseInt(sel.value, 10)));
+    const to = new Date().toISOString();
+    const from = new Date(Date.now() - days * 86400000).toISOString();
+    try {
+        const [m, conv] = await Promise.all([
+            api("GET", "/metrics"),
+            api("GET", "/metrics/conversion?from=" + encodeURIComponent(from) + "&to=" + encodeURIComponent(to)),
+        ]);
+        renderAnalytics(m, conv, days);
+    } catch (e) {
+        box.querySelector(".an-grid").innerHTML = `<p class="form-error">${esc(e.message)}</p>`;
+    }
+}
+
+function renderAnalytics(m, conv, days) {
+    const grid = $("#analytics").querySelector(".an-grid");
+    const cohort = conv.cohortSize || 0;
+    const rateOf = s => conv.conversionRateByStage ? conv.conversionRateByStage[s] : null;
+    const reachOf = s => (conv.reachedByStage && conv.reachedByStage[s]) || 0;
+    const wonRate = rateOf("WON");
+
+    const figures = [
+        ["Active leads", m.activeLeads],
+        ["Cohort · " + days + "d", cohort],
+        ["Won in cohort", reachOf("WON")],
+        ["Win rate", wonRate == null ? "—" : Math.round(wonRate * 100) + "%"],
+        ["Open tasks", m.openTasks],
+        ["Overdue", m.overdueTasks],
+    ];
+    const figuresHtml = figures.map(([l, v]) =>
+        `<div class="an-fig"><div class="an-fig-num">${esc(String(v))}</div><div class="an-fig-lbl">${esc(l)}</div></div>`).join("");
+
+    const funnel = STAGES.map(stage => {
+        const reached = reachOf(stage), rate = rateOf(stage);
+        const pct = rate == null ? null : Math.round(rate * 100);
+        const w = cohort ? Math.max(reached ? 3 : 0, (reached / cohort) * 100) : 0;
+        return `<div class="funnel-row">
+            <div class="funnel-label"><span class="dot" style="background:${STAGE_COLORS[stage]}"></span>${stage}</div>
+            <div class="funnel-track"><div class="funnel-bar" style="width:${w}%;background:${STAGE_COLORS[stage]}"></div></div>
+            <div class="funnel-val">${reached}${pct == null ? "" : `<span class="funnel-pct">${pct}%</span>`}</div>
+        </div>`;
+    }).join("");
+
+    const counts = m.currentStageCounts || {};
+    const maxC = Math.max(1, ...STAGES.map(s => counts[s] || 0));
+    const dist = STAGES.map(stage => {
+        const c = counts[stage] || 0, w = (c / maxC) * 100;
+        return `<div class="funnel-row">
+            <div class="funnel-label"><span class="dot" style="background:${STAGE_COLORS[stage]}"></span>${stage}</div>
+            <div class="funnel-track"><div class="funnel-bar" style="width:${Math.max(c ? 4 : 0, w)}%;background:${STAGE_COLORS[stage]}"></div></div>
+            <div class="funnel-val">${c}</div></div>`;
+    }).join("");
+
+    grid.innerHTML = `
+        <div class="an-card an-figures">${figuresHtml}</div>
+        <div class="an-card">
+            <h3>Conversion funnel</h3>
+            <p class="an-note">Of ${cohort} lead${cohort === 1 ? "" : "s"} that entered in the last ${days} days, how many reached each stage.</p>
+            ${cohort ? funnel : '<p class="muted">No leads entered the pipeline in this window yet.</p>'}
+        </div>
+        <div class="an-card">
+            <h3>Current pipeline</h3>
+            <p class="an-note">Active leads by stage right now — a snapshot, not a conversion rate.</p>
+            ${dist}
+        </div>`;
+    grid.querySelectorAll(".funnel-bar").forEach(b => {
+        const w = b.style.width; b.style.width = "0"; requestAnimationFrame(() => { b.style.width = w; });
+    });
+}
+
 /* ---------- lead detail ---------- */
 
 async function openLead(id) {
@@ -1150,6 +1253,8 @@ function paletteActions() {
     const a = [
         { label: "New lead", hint: "Create", run: openNewLead, icon: "M12 5v14M5 12h14" },
         { label: "Inventory", hint: "Open", run: openInventory, icon: "M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7" },
+        { label: "Analytics", hint: "View", run: () => showView("analytics"), icon: "M4 20V10M10 20V4M16 20v-7M2 20h20" },
+        { label: "Pipeline", hint: "View", run: () => showView("board"), icon: "M4 6h6v12H4zM14 6h6v7h-6z" },
         { label: "Import leads", hint: "Data", run: openImport, icon: "M12 3v12M8 11l4 4 4-4M4 21h16" },
         { label: "Export CSV", hint: "Data", run: () => download("/exports/leads?format=csv", "leads.csv"), icon: "M12 21V9M8 13l4-4 4 4M4 3h16" },
         { label: "Notifications", hint: "Open", run: openNotifications, icon: "M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" },
@@ -1301,6 +1406,8 @@ $("#show-samples").addEventListener("change", loadBoard);
 $("#show-archived").addEventListener("change", loadBoard);
 $("#btn-theme").addEventListener("click", toggleTheme);
 const palBtn = $("#btn-palette"); if (palBtn) palBtn.addEventListener("click", openPalette);
+$("#nav-pipeline").addEventListener("click", () => showView("board"));
+$("#nav-analytics").addEventListener("click", () => showView("analytics"));
 document.addEventListener("keydown", e => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); openPalette(); }
     else if (e.key === "Escape") {
