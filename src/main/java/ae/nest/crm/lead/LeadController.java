@@ -4,6 +4,7 @@ import ae.nest.crm.common.PageResponse;
 import ae.nest.crm.domain.LeadSegment;
 import ae.nest.crm.domain.LeadStage;
 import ae.nest.crm.lead.LeadDtos.HotLeadSummary;
+import ae.nest.crm.lead.LeadDtos.InboxLeadSummary;
 import ae.nest.crm.lead.LeadDtos.LeadCreateRequest;
 import ae.nest.crm.lead.LeadDtos.LeadResponse;
 import ae.nest.crm.lead.LeadDtos.LeadSummary;
@@ -64,6 +65,14 @@ public class LeadController {
             @RequestParam(defaultValue = "25") int size) {
         Pageable pageable = PageSupport.of(page, size, Sort.unsorted());
         return PageResponse.of(service.hotLeads(currentUser.workspaceId(), segment, pageable));
+    }
+
+    @GetMapping("/inbox")
+    public PageResponse<InboxLeadSummary> inbox(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        Pageable pageable = PageSupport.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return PageResponse.of(service.inbox(currentUser.workspaceId(), pageable));
     }
 
     @PostMapping("/{id}/assign")

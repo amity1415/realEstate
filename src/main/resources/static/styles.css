@@ -595,3 +595,21 @@ select:focus-visible, textarea:focus-visible, .icon-btn:focus-visible { box-shad
     .hot-rank { display: none; }
     .hot-score { width: 50px; height: 50px; }
 }
+
+/* ---------- Inbox view ---------- */
+.nav-item { position: relative; }
+.nav-badge { margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+    background: var(--danger); color: #fff; font-size: 10.5px; font-weight: 800; line-height: 18px;
+    text-align: center; font-variant-numeric: tabular-nums; }
+.inbox-row { gap: 14px; }
+.inbox-row .hot-name-row { gap: 9px; }
+.inbox-row .card-time { margin-left: auto; font-size: 11.5px; color: var(--muted); }
+.inbox-row .btn-sm { flex: none; white-space: nowrap; }
+.chan-chip { background: var(--green-100) !important; border-color: var(--green-100) !important;
+    color: var(--green-800) !important; font-weight: 600; }
+:root[data-theme="dark"] .chan-chip { background: rgba(39,160,111,0.16) !important;
+    border-color: rgba(39,160,111,0.26) !important; color: #7fd6ab !important; }
+@media (max-width: 680px) {
+    .inbox-row { flex-wrap: wrap; }
+    .inbox-row .btn-sm { width: 100%; margin-top: 4px; }
+}

@@ -77,6 +77,14 @@ app:
   delivery:
     # Outbound messaging provider. 'simulated' does not actually send; wire a real one when connected.
     provider: ${DELIVERY_PROVIDER:simulated}
+  meta:
+    # Meta Lead Ads webhook. Inactive until the verify token + app secret are set.
+    verify-token: ${META_VERIFY_TOKEN:}
+    app-secret: ${META_APP_SECRET:}
+    page-access-token: ${META_PAGE_ACCESS_TOKEN:}
+    graph-version: ${META_GRAPH_VERSION:v21.0}
+    # Inbound-source token that maps Meta leads to a workspace + default owner.
+    source-token: ${META_SOURCE_TOKEN:}
   scheduling:
     enabled: ${SCHEDULING_ENABLED:true}
     reminders-ms: ${SCHEDULING_REMINDERS_MS:60000}

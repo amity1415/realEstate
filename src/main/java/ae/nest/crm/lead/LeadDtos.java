@@ -108,6 +108,21 @@ public final class LeadDtos {
             Instant computedAt,
             Instant updatedAt) {}
 
+    /** A freshly-arrived lead awaiting first response, with where it came from and its score. */
+    public record InboxLeadSummary(
+            String id,
+            String name,
+            String email,
+            String phone,
+            String source,
+            String channel,
+            String utmCampaign,
+            String adId,
+            String formId,
+            Integer score,
+            LeadSegment segment,
+            Instant createdAt) {}
+
     public record StageEventDto(
             String id, LeadStage oldStage, LeadStage newStage, Instant changedAt, String reason) {}
 }

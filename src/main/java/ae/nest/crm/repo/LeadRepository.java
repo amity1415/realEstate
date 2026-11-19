@@ -33,4 +33,8 @@ public interface LeadRepository
 
     /** All active leads across workspaces — for the scheduled re-score job. */
     List<Lead> findByArchivedAtIsNull();
+
+    /** Triage inbox: active leads at a stage (NEW), newest first. */
+    org.springframework.data.domain.Page<Lead> findByWorkspaceIdAndStageAndArchivedAtIsNull(
+            UUID workspaceId, LeadStage stage, org.springframework.data.domain.Pageable pageable);
 }

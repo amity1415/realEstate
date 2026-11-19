@@ -64,13 +64,15 @@ public class SecurityConfig {
                         // login/logout establish the session + token; the inbound intake is token-
                         // authenticated (no session), so exempt these from the CSRF check.
                         .ignoringRequestMatchers("/api/v1/auth/login", "/api/v1/auth/logout",
-                                "/api/v1/inbound/leads"))
+                                "/api/v1/inbound/leads", "/webhooks/meta/leads"))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .securityContext(sc -> sc.securityContextRepository(securityContextRepository()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/auth/login", "/api/v1/auth/csrf").permitAll()
                         // Token-authenticated approved inbound lead intake (create-only).
                         .requestMatchers("/api/v1/inbound/leads").permitAll()
+                        // Meta Lead Ads webhook — authenticated by HMAC signature, not a session.
+                        .requestMatchers("/webhooks/meta/leads").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info")
                         .permitAll()
                         .requestMatchers(

@@ -21,6 +21,7 @@ public class AppProperties {
     private final Ai ai = new Ai();
     private final Inventory inventory = new Inventory();
     private final Delivery delivery = new Delivery();
+    private final Meta meta = new Meta();
 
     public String getBaseUrl() {
         return baseUrl;
@@ -52,6 +53,78 @@ public class AppProperties {
 
     public Delivery getDelivery() {
         return delivery;
+    }
+
+    public Meta getMeta() {
+        return meta;
+    }
+
+    /**
+     * Meta (Facebook/Instagram) Lead Ads webhook integration. Disabled until the three secrets are set.
+     * The webhook verifies the subscription handshake, checks the HMAC signature on every delivery, and
+     * funnels each lead through the existing token-authenticated inbound intake using {@code sourceToken}
+     * (so Meta leads reuse the same dedupe, attribution, notification and scoring as any inbound lead).
+     */
+    public static class Meta {
+        /** Token echoed back on the GET subscription handshake (you choose this in the Meta dashboard). */
+        private String verifyToken;
+        /** Meta app secret — used to validate the X-Hub-Signature-256 HMAC on every POST. */
+        private String appSecret;
+        /** Page access token used to fetch a lead's field data from the Graph API. */
+        private String pageAccessToken;
+        /** Graph API version, e.g. v21.0. */
+        private String graphVersion = "v21.0";
+        /** Plaintext inbound-source token that maps Meta leads to a workspace + default owner. */
+        private String sourceToken;
+
+        /** The webhook is active only when the handshake + signature secrets are present. */
+        public boolean isConfigured() {
+            return notBlank(verifyToken) && notBlank(appSecret);
+        }
+
+        private static boolean notBlank(String s) {
+            return s != null && !s.isBlank();
+        }
+
+        public String getVerifyToken() {
+            return verifyToken;
+        }
+
+        public void setVerifyToken(String verifyToken) {
+            this.verifyToken = verifyToken;
+        }
+
+        public String getAppSecret() {
+            return appSecret;
+        }
+
+        public void setAppSecret(String appSecret) {
+            this.appSecret = appSecret;
+        }
+
+        public String getPageAccessToken() {
+            return pageAccessToken;
+        }
+
+        public void setPageAccessToken(String pageAccessToken) {
+            this.pageAccessToken = pageAccessToken;
+        }
+
+        public String getGraphVersion() {
+            return graphVersion;
+        }
+
+        public void setGraphVersion(String graphVersion) {
+            this.graphVersion = graphVersion;
+        }
+
+        public String getSourceToken() {
+            return sourceToken;
+        }
+
+        public void setSourceToken(String sourceToken) {
+            this.sourceToken = sourceToken;
+        }
     }
 
     /**

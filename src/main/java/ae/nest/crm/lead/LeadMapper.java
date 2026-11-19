@@ -1,10 +1,12 @@
 package ae.nest.crm.lead;
 
 import ae.nest.crm.domain.Lead;
+import ae.nest.crm.domain.LeadAttribution;
 import ae.nest.crm.domain.LeadRequirement;
 import ae.nest.crm.domain.LeadScore;
 import ae.nest.crm.domain.LeadStageEvent;
 import ae.nest.crm.lead.LeadDtos.HotLeadSummary;
+import ae.nest.crm.lead.LeadDtos.InboxLeadSummary;
 import ae.nest.crm.lead.LeadDtos.LeadResponse;
 import ae.nest.crm.lead.LeadDtos.LeadSummary;
 import ae.nest.crm.lead.LeadDtos.RequirementDto;
@@ -86,6 +88,22 @@ final class LeadMapper {
                 score.getFactors() == null ? List.of() : score.getFactors(),
                 score.getComputedAt(),
                 lead.getUpdatedAt());
+    }
+
+    static InboxLeadSummary toInboxSummary(Lead lead, LeadScore score, LeadAttribution attr) {
+        return new InboxLeadSummary(
+                lead.getId().toString(),
+                lead.getName(),
+                lead.getEmail(),
+                lead.getPhone(),
+                lead.getSource(),
+                attr == null ? null : attr.getChannel(),
+                attr == null ? null : attr.getUtmCampaign(),
+                attr == null ? null : attr.getAdId(),
+                attr == null ? null : attr.getFormId(),
+                score == null ? null : score.getScore(),
+                score == null ? null : score.getSegment(),
+                lead.getCreatedAt());
     }
 
     static StageEventDto toStageEvent(LeadStageEvent e) {

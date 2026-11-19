@@ -11,7 +11,9 @@ import ae.nest.crm.domain.LeadSegment;
 import ae.nest.crm.domain.LeadStage;
 import ae.nest.crm.domain.LeadStageEvent;
 import ae.nest.crm.domain.NotificationType;
+import ae.nest.crm.domain.LeadAttribution;
 import ae.nest.crm.lead.LeadDtos.HotLeadSummary;
+import ae.nest.crm.lead.LeadDtos.InboxLeadSummary;
 import ae.nest.crm.lead.LeadDtos.LeadCreateRequest;
 import ae.nest.crm.lead.LeadDtos.LeadResponse;
 import ae.nest.crm.lead.LeadDtos.LeadSummary;
@@ -20,6 +22,7 @@ import ae.nest.crm.lead.LeadDtos.RequirementDto;
 import ae.nest.crm.lead.LeadDtos.StageEventDto;
 import ae.nest.crm.notification.NotificationService;
 import ae.nest.crm.repo.AppUserRepository;
+import ae.nest.crm.repo.LeadAttributionRepository;
 import ae.nest.crm.repo.LeadRepository;
 import ae.nest.crm.repo.LeadRequirementRepository;
 import ae.nest.crm.repo.LeadScoreRepository;
@@ -47,6 +50,7 @@ public class LeadService {
     private final AuditService audit;
     private final LeadScoreService scoreService;
     private final LeadScoreRepository scores;
+    private final LeadAttributionRepository attribution;
 
     public LeadService(
             LeadRepository leads,
@@ -56,7 +60,8 @@ public class LeadService {
             NotificationService notifications,
             AuditService audit,
             LeadScoreService scoreService,
-            LeadScoreRepository scores) {
+            LeadScoreRepository scores,
+            LeadAttributionRepository attribution) {
         this.leads = leads;
         this.requirements = requirements;
         this.stageEvents = stageEvents;
@@ -65,6 +70,7 @@ public class LeadService {
         this.audit = audit;
         this.scoreService = scoreService;
         this.scores = scores;
+        this.attribution = attribution;
     }
 
     @Transactional(readOnly = true)
@@ -90,6 +96,22 @@ public class LeadService {
         List<UUID> ids = page.map(Lead::getId).getContent();
         Map<UUID, LeadScore> byLead = scoreService.scoresFor(workspaceId, ids);
         return page.map(lead -> LeadMapper.toSummary(lead, byLead.get(lead.getId())));
+    }
+
+    /** Triage inbox: new (unworked) leads, newest first, annotated with channel + campaign + score. */
+    @Transactional(readOnly = true)
+    public Page<InboxLeadSummary> inbox(UUID workspaceId, Pageable pageable) {
+        Page<Lead> page = leads.findByWorkspaceIdAndStageAndArchivedAtIsNull(
+                workspaceId, LeadStage.NEW, pageable);
+        List<UUID> ids = page.map(Lead::getId).getContent();
+        Map<UUID, LeadScore> byScore = scoreService.scoresFor(workspaceId, ids);
+        Map<UUID, LeadAttribution> byAttr = new java.util.HashMap<>();
+        if (!ids.isEmpty()) {
+            attribution.findByWorkspaceIdAndLeadIdIn(workspaceId, ids)
+                    .forEach(a -> byAttr.put(a.getLeadId(), a));
+        }
+        return page.map(lead -> LeadMapper.toInboxSummary(
+                lead, byScore.get(lead.getId()), byAttr.get(lead.getId())));
     }
 
     /** Highest-intent leads first, optionally narrowed to one segment, with their scoring factors. */

@@ -208,6 +208,26 @@ class CrmApiIntegrationTest {
     }
 
     @Test
+    void newLeadsLandInTheInboxAndLeaveOnceContacted() throws Exception {
+        String id = createLead(owner, "Triage Me", 900000, 1, "Dubai");
+
+        mvc.perform(get("/api/v1/leads/inbox").with(user(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(id))
+                .andExpect(jsonPath("$.content[0].score").isNumber());
+
+        // Moving it out of NEW removes it from the triage inbox.
+        mvc.perform(patch("/api/v1/leads/" + id).with(user(owner)).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateBody("Triage Me", "CONTACTED", 0)))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/api/v1/leads/inbox").with(user(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+    }
+
+    @Test
     void exportCsvNeutralisesFormulaInjection() throws Exception {
         createLead(owner, "=HYPERLINK(evil)", 500000, 1, "Dubai");
         mvc.perform(get("/api/v1/exports/leads?format=csv").with(user(owner)))

@@ -117,10 +117,13 @@ function onAuthenticated(me) {
     showApp();
     refresh();
     loadNotifCount();
+    loadInboxCount();
     if (!state.notifTimer) state.notifTimer = setInterval(loadNotifCount, 60000);
+    if (!state.inboxTimer) state.inboxTimer = setInterval(loadInboxCount, 60000);
 }
 
 async function refresh() {
+    loadInboxCount();
     await Promise.all([loadMetrics(), loadBoard()]);
 }
 
@@ -331,19 +334,95 @@ const STAGE_COLORS = { NEW: "#64748b", CONTACTED: "#3b82f6", QUALIFIED: "#7c5cfc
     VIEWING: "#c49a46", WON: "#1c855b", LOST: "#b2544a" };
 
 function showView(view) {
-    const titles = { board: "Pipeline", analytics: "Analytics", hot: "Hot leads" };
+    const titles = { board: "Pipeline", analytics: "Analytics", hot: "Hot leads", inbox: "Inbox" };
     const isBoard = view === "board";
     $("#board").hidden = !isBoard;
     $("#metrics").hidden = !isBoard;
     $("#analytics").hidden = view !== "analytics";
     $("#hot").hidden = view !== "hot";
+    $("#inbox").hidden = view !== "inbox";
     const tb = document.querySelector(".toolbar"); if (tb) tb.hidden = !isBoard;
     $("#page-title").textContent = titles[view] || "Pipeline";
     $("#nav-pipeline").classList.toggle("is-active", isBoard);
     $("#nav-analytics").classList.toggle("is-active", view === "analytics");
     const nh = $("#nav-hot"); if (nh) nh.classList.toggle("is-active", view === "hot");
+    const ni = $("#nav-inbox"); if (ni) ni.classList.toggle("is-active", view === "inbox");
     if (view === "analytics") loadAnalytics(state.analyticsDays || 90);
     else if (view === "hot") loadHot(state.hotSegment || "");
+    else if (view === "inbox") loadInbox();
+}
+
+async function loadInboxCount() {
+    try {
+        const page = await api("GET", "/leads/inbox?size=1");
+        const n = page.totalElements || 0;
+        const badge = $("#inbox-count");
+        if (badge) { badge.textContent = n > 99 ? "99+" : String(n); badge.hidden = n === 0; }
+    } catch (e) { /* non-fatal */ }
+}
+
+async function loadInbox() {
+    const box = $("#inbox");
+    box.innerHTML = `<div class="hot-head">
+        <div><h2>Inbox</h2>
+            <p class="muted">New leads awaiting first response — newest first, with where each came from. Reach out fast; speed-to-lead wins deals.</p></div></div>
+        <div class="hot-list">
+            <div class="skel" style="height:72px;border-radius:14px;margin-bottom:10px"></div>
+            <div class="skel" style="height:72px;border-radius:14px;margin-bottom:10px"></div>
+            <div class="skel" style="height:72px;border-radius:14px"></div></div>`;
+    let page;
+    try { page = await api("GET", "/leads/inbox?size=100"); }
+    catch (e) { box.querySelector(".hot-list").innerHTML = `<p class="form-error">${esc(e.message)}</p>`; return; }
+
+    const list = box.querySelector(".hot-list");
+    list.innerHTML = "";
+    if (!page.content.length) {
+        list.innerHTML = `<div class="hot-empty"><p>Inbox zero. 🎉</p>
+            <p class="muted">New leads from your website, marketing campaigns and manual entry land here for triage.</p></div>`;
+        return;
+    }
+    page.content.forEach(l => list.appendChild(inboxRow(l)));
+}
+
+function inboxRow(l) {
+    const row = el("div", "hot-row inbox-row");
+    row.tabIndex = 0;
+    row.setAttribute("role", "button");
+
+    const av = el("div", "card-av", initials(l.name));
+    av.style.background = avatarColor(l.name);
+    row.appendChild(av);
+
+    const mid = el("div", "hot-mid");
+    const nameRow = el("div", "hot-name-row");
+    nameRow.appendChild(el("span", "hot-name", l.name));
+    if (l.score != null && l.segment) nameRow.appendChild(scoreChip(l.score, l.segment));
+    nameRow.appendChild(el("span", "card-time", l.createdAt ? timeAgo(l.createdAt) : ""));
+    mid.appendChild(nameRow);
+
+    const meta = el("div", "hot-meta");
+    const chan = l.channel || l.source;
+    if (chan) { const c = el("span", "chan-chip"); c.textContent = chan; meta.appendChild(c); }
+    if (l.utmCampaign) meta.appendChild(el("span", null, l.utmCampaign));
+    if (l.email) meta.appendChild(el("span", null, l.email));
+    if (l.phone) meta.appendChild(el("span", null, l.phone));
+    if (meta.children.length) mid.appendChild(meta);
+    row.appendChild(mid);
+
+    const act = el("button", "btn btn-ghost btn-sm", "Mark contacted");
+    act.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        act.disabled = true;
+        await moveLeadToStage(l.id, "CONTACTED");
+        loadInbox(); loadInboxCount();
+    });
+    row.appendChild(act);
+
+    row.addEventListener("click", () => openLead(l.id));
+    row.addEventListener("keydown", e => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openLead(l.id); }
+    });
+    return row;
 }
 
 async function loadHot(segment) {
@@ -1363,6 +1442,7 @@ function paletteActions() {
         { label: "New lead", hint: "Create", run: openNewLead, icon: "M12 5v14M5 12h14" },
         { label: "Inventory", hint: "Open", run: openInventory, icon: "M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7" },
         { label: "Analytics", hint: "View", run: () => showView("analytics"), icon: "M4 20V10M10 20V4M16 20v-7M2 20h20" },
+        { label: "Inbox", hint: "View", run: () => showView("inbox"), icon: "M3 13h5l2 3h4l2-3h5M5 5h14l2 8v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4z" },
         { label: "Hot leads", hint: "View", run: () => showView("hot"), icon: "M12 3c1 3-1 4-1 6a3 3 0 0 0 6 0c0-1-.4-2-1-3 2 1 4 4 4 7a7 7 0 0 1-14 0c0-4 3-6 6-10z" },
         { label: "Pipeline", hint: "View", run: () => showView("board"), icon: "M4 6h6v12H4zM14 6h6v7h-6z" },
         { label: "Import leads", hint: "Data", run: openImport, icon: "M12 3v12M8 11l4 4 4-4M4 21h16" },
@@ -1522,6 +1602,7 @@ const palBtn = $("#btn-palette"); if (palBtn) palBtn.addEventListener("click", o
 $("#nav-pipeline").addEventListener("click", () => showView("board"));
 $("#nav-analytics").addEventListener("click", () => showView("analytics"));
 const navHot = $("#nav-hot"); if (navHot) navHot.addEventListener("click", () => showView("hot"));
+const navInbox = $("#nav-inbox"); if (navInbox) navInbox.addEventListener("click", () => showView("inbox"));
 document.addEventListener("keydown", e => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); openPalette(); }
     else if (e.key === "Escape") {
